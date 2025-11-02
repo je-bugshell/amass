@@ -5,6 +5,7 @@
 package dns
 
 import (
+	"context"
 	"log/slog"
 	"sync"
 	"time"
@@ -176,15 +177,19 @@ func (d *dnsPlugin) lookupWithinTTL(session et.Session, name string, atype oam.A
 		return results
 	}
 
-	ents, err := session.Cache().FindEntitiesByContent(&oamdns.FQDN{Name: name}, time.Time{})
-	if err != nil || len(ents) != 1 {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	entity, err := session.DB().FindOneEntityByContent(ctx, string(oam.FQDN), time.Time{}, dbt.ContentFilters{
+		"name": name,
+	})
+	if err != nil || entity == nil {
 		return results
 	}
-	entity := ents[0]
 
-	if edges, err := session.Cache().OutgoingEdges(entity, since, "dns_record"); err == nil && len(edges) > 0 {
+	if edges, err := session.DB().OutgoingEdges(ctx, entity, since, "dns_record"); err == nil && len(edges) > 0 {
 		for _, edge := range edges {
-			if tags, err := session.Cache().GetEdgeTags(edge, since, d.source.Name); err == nil && len(tags) > 0 {
+			if tags, err := session.DB().FindEdgeTags(ctx, edge, since, d.source.Name); err == nil && len(tags) > 0 {
 				var found bool
 
 				for _, tag := range tags {
@@ -216,7 +221,7 @@ func (d *dnsPlugin) lookupWithinTTL(session et.Session, name string, atype oam.A
 
 			for _, t := range rrtypes {
 				if rrtype == t {
-					if to, err := session.Cache().FindEntityById(edge.ToEntity.ID); err == nil && to != nil && to.Asset.AssetType() == atype {
+					if to, err := session.DB().FindEntityById(ctx, edge.ToEntity.ID); err == nil && to != nil && to.Asset.AssetType() == atype {
 						results = append(results, to)
 						break
 					}
@@ -229,9 +234,12 @@ func (d *dnsPlugin) lookupWithinTTL(session et.Session, name string, atype oam.A
 }
 
 func sweepCallback(e *et.Event, ip *oamnet.IPAddress, src *et.Source) {
-	entity, err := e.Session.Cache().CreateAsset(ip)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	entity, err := e.Session.DB().CreateAsset(ctx, ip)
 	if err == nil && entity != nil {
-		_, _ = e.Session.Cache().CreateEntityProperty(entity, &general.SourceProperty{
+		_, _ = e.Session.DB().CreateEntityProperty(ctx, entity, &general.SourceProperty{
 			Source:     src.Name,
 			Confidence: src.Confidence,
 		})

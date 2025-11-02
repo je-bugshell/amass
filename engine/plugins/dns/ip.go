@@ -5,6 +5,7 @@
 package dns
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/netip"
@@ -116,12 +117,15 @@ func (d *dnsIP) query(e *et.Event, name *dbt.Entity) []*relIP {
 func (d *dnsIP) store(e *et.Event, fqdn *dbt.Entity, rr []dns.RR) []*relIP {
 	var ips []*relIP
 
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
 	for _, record := range rr {
 		if record.Header().Rrtype == dns.TypeA {
 			addr := (record.(*dns.A)).A.String()
 
-			if ip, err := e.Session.Cache().CreateAsset(&oamnet.IPAddress{Address: netip.MustParseAddr(string(addr)), Type: "IPv4"}); err == nil && ip != nil {
-				if edge, err := e.Session.Cache().CreateEdge(&dbt.Edge{
+			if ip, err := e.Session.DB().CreateAsset(ctx, &oamnet.IPAddress{Address: netip.MustParseAddr(string(addr)), Type: "IPv4"}); err == nil && ip != nil {
+				if edge, err := e.Session.DB().CreateEdge(ctx, &dbt.Edge{
 					Relation: &oamdns.BasicDNSRelation{
 						Name: "dns_record",
 						Header: oamdns.RRHeader{
@@ -134,7 +138,7 @@ func (d *dnsIP) store(e *et.Event, fqdn *dbt.Entity, rr []dns.RR) []*relIP {
 					ToEntity:   ip,
 				}); err == nil && edge != nil {
 					ips = append(ips, &relIP{rtype: "dns_record", ip: ip})
-					_, _ = e.Session.Cache().CreateEdgeProperty(edge, &general.SourceProperty{
+					_, _ = e.Session.DB().CreateEdgeProperty(ctx, edge, &general.SourceProperty{
 						Source:     d.source.Name,
 						Confidence: d.source.Confidence,
 					})
@@ -145,8 +149,8 @@ func (d *dnsIP) store(e *et.Event, fqdn *dbt.Entity, rr []dns.RR) []*relIP {
 		} else if record.Header().Rrtype == dns.TypeAAAA {
 			addr := (record.(*dns.AAAA)).AAAA.String()
 
-			if ip, err := e.Session.Cache().CreateAsset(&oamnet.IPAddress{Address: netip.MustParseAddr(addr), Type: "IPv6"}); err == nil {
-				if edge, err := e.Session.Cache().CreateEdge(&dbt.Edge{
+			if ip, err := e.Session.DB().CreateAsset(ctx, &oamnet.IPAddress{Address: netip.MustParseAddr(addr), Type: "IPv6"}); err == nil {
+				if edge, err := e.Session.DB().CreateEdge(ctx, &dbt.Edge{
 					Relation: &oamdns.BasicDNSRelation{
 						Name: "dns_record",
 						Header: oamdns.RRHeader{
@@ -159,7 +163,7 @@ func (d *dnsIP) store(e *et.Event, fqdn *dbt.Entity, rr []dns.RR) []*relIP {
 					ToEntity:   ip,
 				}); err == nil && edge != nil {
 					ips = append(ips, &relIP{rtype: "dns_record", ip: ip})
-					_, _ = e.Session.Cache().CreateEdgeProperty(edge, &general.SourceProperty{
+					_, _ = e.Session.DB().CreateEdgeProperty(ctx, edge, &general.SourceProperty{
 						Source:     d.source.Name,
 						Confidence: d.source.Confidence,
 					})

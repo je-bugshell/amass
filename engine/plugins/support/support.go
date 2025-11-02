@@ -5,6 +5,7 @@
 package support
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -19,6 +20,8 @@ import (
 	et "github.com/owasp-amass/amass/v5/engine/types"
 	amassnet "github.com/owasp-amass/amass/v5/internal/net"
 	"github.com/owasp-amass/amass/v5/internal/net/dns"
+	dbt "github.com/owasp-amass/asset-db/types"
+	oam "github.com/owasp-amass/open-asset-model"
 	oamdns "github.com/owasp-amass/open-asset-model/dns"
 	oamnet "github.com/owasp-amass/open-asset-model/network"
 	"github.com/owasp-amass/open-asset-model/url"
@@ -162,8 +165,13 @@ func AddNetblock(session et.Session, cidr string, asn int, src *et.Source) error
 }
 
 func IPAddressSweep(e *et.Event, addr *oamnet.IPAddress, src *et.Source, size int, callback SweepCallback) {
-	// do not work on an IP address that was processed previously
-	_, err := e.Session.Cache().FindEntitiesByContent(addr, e.Session.Cache().StartTime())
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// ensure we do not work on an IP address that was processed previously
+	_, err := e.Session.DB().FindEntitiesByContent(ctx, string(oam.IPAddress), e.Session.StartTime(), dbt.ContentFilters{
+		"address": addr.Address.String(),
+	})
 	if err == nil {
 		return
 	}
@@ -195,16 +203,20 @@ func IPAddressSweep(e *et.Event, addr *oamnet.IPAddress, src *et.Source, size in
 }
 
 func IsCNAME(session et.Session, name *oamdns.FQDN) (*oamdns.FQDN, bool) {
-	fqdns, err := session.Cache().FindEntitiesByContent(name, session.Cache().StartTime())
-	if err != nil || len(fqdns) != 1 {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	fqdn, err := session.DB().FindOneEntityByContent(ctx, string(oam.FQDN), session.StartTime(), dbt.ContentFilters{
+		"name": name.Name,
+	})
+	if err != nil || fqdn == nil {
 		return nil, false
 	}
-	fqdn := fqdns[0]
 
-	if edges, err := session.Cache().OutgoingEdges(fqdn, session.Cache().StartTime(), "dns_record"); err == nil && len(edges) > 0 {
+	if edges, err := session.DB().OutgoingEdges(ctx, fqdn, session.StartTime(), "dns_record"); err == nil && len(edges) > 0 {
 		for _, edge := range edges {
 			if rec, ok := edge.Relation.(*oamdns.BasicDNSRelation); ok && rec.Header.RRType == 5 {
-				if to, err := session.Cache().FindEntityById(edge.ToEntity.ID); err == nil {
+				if to, err := session.DB().FindEntityById(ctx, edge.ToEntity.ID); err == nil {
 					if cname, ok := to.Asset.(*oamdns.FQDN); ok {
 						return cname, true
 					}
@@ -216,17 +228,21 @@ func IsCNAME(session et.Session, name *oamdns.FQDN) (*oamdns.FQDN, bool) {
 }
 
 func NameIPAddresses(session et.Session, name *oamdns.FQDN) []*oamnet.IPAddress {
-	fqdns, err := session.Cache().FindEntitiesByContent(name, session.Cache().StartTime())
-	if err != nil || len(fqdns) != 1 {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	fqdn, err := session.DB().FindOneEntityByContent(ctx, string(oam.FQDN), session.StartTime(), dbt.ContentFilters{
+		"name": name.Name,
+	})
+	if err != nil || fqdn == nil {
 		return nil
 	}
-	fqdn := fqdns[0]
 
 	var results []*oamnet.IPAddress
-	if edges, err := session.Cache().OutgoingEdges(fqdn, session.Cache().StartTime(), "dns_record"); err == nil && len(edges) > 0 {
+	if edges, err := session.DB().OutgoingEdges(ctx, fqdn, session.StartTime(), "dns_record"); err == nil && len(edges) > 0 {
 		for _, edge := range edges {
 			if rec, ok := edge.Relation.(*oamdns.BasicDNSRelation); ok && (rec.Header.RRType == 1 || rec.Header.RRType == 28) {
-				if to, err := session.Cache().FindEntityById(edge.ToEntity.ID); err == nil {
+				if to, err := session.DB().FindEntityById(ctx, edge.ToEntity.ID); err == nil {
 					if ip, ok := to.Asset.(*oamnet.IPAddress); ok {
 						results = append(results, ip)
 					}

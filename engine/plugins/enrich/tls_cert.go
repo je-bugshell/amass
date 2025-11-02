@@ -5,6 +5,7 @@
 package enrich
 
 import (
+	"context"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"errors"
@@ -137,9 +138,12 @@ func (te *tlsexpand) lookup(e *et.Event, asset *dbt.Entity, m *config.Matches) [
 		}
 	}
 
-	if edges, err := e.Session.Cache().OutgoingEdges(asset, time.Time{}, rtypes...); err == nil && len(edges) > 0 {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if edges, err := e.Session.DB().OutgoingEdges(ctx, asset, time.Time{}, rtypes...); err == nil && len(edges) > 0 {
 		for _, edge := range edges {
-			a, err := e.Session.Cache().FindEntityById(edge.ToEntity.ID)
+			a, err := e.Session.DB().FindEntityById(ctx, edge.ToEntity.ID)
 			if err != nil {
 				continue
 			}
@@ -169,7 +173,10 @@ func (te *tlsexpand) lookup(e *et.Event, asset *dbt.Entity, m *config.Matches) [
 }
 
 func (te *tlsexpand) oneOfSources(e *et.Event, edge *dbt.Edge, src *et.Source, since time.Time) bool {
-	if tags, err := e.Session.Cache().GetEdgeTags(edge, since, src.Name); err == nil && len(tags) > 0 {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if tags, err := e.Session.DB().FindEdgeTags(ctx, edge, since, src.Name); err == nil && len(tags) > 0 {
 		for _, tag := range tags {
 			if _, ok := tag.Property.(*general.SourceProperty); ok {
 				return true
@@ -183,9 +190,12 @@ func (te *tlsexpand) store(e *et.Event, cert *x509.Certificate, asset *dbt.Entit
 	var findings []*support.Finding
 	t := asset.Asset.(*oamcert.TLSCertificate)
 
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
 	if m.IsMatch(string(oam.FQDN)) {
 		if common := t.SubjectCommonName; common != "" {
-			if a, err := e.Session.Cache().CreateAsset(&oamdns.FQDN{Name: common}); err == nil && a != nil {
+			if a, err := e.Session.DB().CreateAsset(ctx, &oamdns.FQDN{Name: common}); err == nil && a != nil {
 				findings = append(findings, &support.Finding{
 					From:     asset,
 					FromName: "TLSCertificate: " + t.SerialNumber,
@@ -197,7 +207,7 @@ func (te *tlsexpand) store(e *et.Event, cert *x509.Certificate, asset *dbt.Entit
 		}
 		for _, n := range cert.DNSNames {
 			for _, name := range support.ScrapeSubdomainNames(strings.ToLower(strings.TrimSpace(n))) {
-				if a, err := e.Session.Cache().CreateAsset(&oamdns.FQDN{Name: name}); err == nil && a != nil {
+				if a, err := e.Session.DB().CreateAsset(ctx, &oamdns.FQDN{Name: name}); err == nil && a != nil {
 					findings = append(findings, &support.Finding{
 						From:     asset,
 						FromName: "TLSCertificate: " + t.SerialNumber,
@@ -217,7 +227,7 @@ func (te *tlsexpand) store(e *et.Event, cert *x509.Certificate, asset *dbt.Entit
 				continue
 			}
 
-			if a, err := e.Session.Cache().CreateAsset(&general.Identifier{
+			if a, err := e.Session.DB().CreateAsset(ctx, &general.Identifier{
 				UniqueID: fmt.Sprintf("%s:%s", general.EmailAddress, email),
 				ID:       email,
 				Type:     general.EmailAddress,
@@ -243,7 +253,7 @@ func (te *tlsexpand) store(e *et.Event, cert *x509.Certificate, asset *dbt.Entit
 				oamip.Type = "IPv6"
 			}
 
-			if a, err := e.Session.Cache().CreateAsset(oamip); err == nil && a != nil {
+			if a, err := e.Session.DB().CreateAsset(ctx, oamip); err == nil && a != nil {
 				findings = append(findings, &support.Finding{
 					From:     asset,
 					FromName: "TLSCertificate: " + t.SerialNumber,
@@ -258,7 +268,7 @@ func (te *tlsexpand) store(e *et.Event, cert *x509.Certificate, asset *dbt.Entit
 	if m.IsMatch(string(oam.URL)) {
 		for _, u := range cert.URIs {
 			if oamurl := support.RawURLToOAM(u.String()); oamurl != nil {
-				if a, err := e.Session.Cache().CreateAsset(oamurl); err == nil && a != nil {
+				if a, err := e.Session.DB().CreateAsset(ctx, oamurl); err == nil && a != nil {
 					findings = append(findings, &support.Finding{
 						From:     asset,
 						FromName: "TLSCertificate: " + t.SerialNumber,
@@ -271,7 +281,7 @@ func (te *tlsexpand) store(e *et.Event, cert *x509.Certificate, asset *dbt.Entit
 		}
 		for _, u := range cert.IssuingCertificateURL {
 			if oamurl := support.RawURLToOAM(u); oamurl != nil {
-				if a, err := e.Session.Cache().CreateAsset(oamurl); err == nil && a != nil {
+				if a, err := e.Session.DB().CreateAsset(ctx, oamurl); err == nil && a != nil {
 					findings = append(findings, &support.Finding{
 						From:     asset,
 						FromName: "TLSCertificate: " + t.SerialNumber,
@@ -284,7 +294,7 @@ func (te *tlsexpand) store(e *et.Event, cert *x509.Certificate, asset *dbt.Entit
 		}
 		for _, u := range cert.OCSPServer {
 			if oamurl := support.RawURLToOAM(u); oamurl != nil {
-				if a, err := e.Session.Cache().CreateAsset(oamurl); err == nil && a != nil {
+				if a, err := e.Session.DB().CreateAsset(ctx, oamurl); err == nil && a != nil {
 					findings = append(findings, &support.Finding{
 						From:     asset,
 						FromName: "TLSCertificate: " + t.SerialNumber,
@@ -335,7 +345,10 @@ func (te *tlsexpand) storeContact(e *et.Event, c *tlsContact, asset *dbt.Entity,
 		return
 	}
 
-	cr, err := e.Session.Cache().CreateAsset(&contact.ContactRecord{DiscoveredAt: c.DiscoveredAt})
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	cr, err := e.Session.DB().CreateAsset(ctx, &contact.ContactRecord{DiscoveredAt: c.DiscoveredAt})
 	if err != nil || cr == nil {
 		return
 	}
@@ -356,13 +369,13 @@ func (te *tlsexpand) storeContact(e *et.Event, c *tlsContact, asset *dbt.Entity,
 			}
 		}
 		if loc := support.StreetAddressToLocation(strings.TrimSpace(addr)); loc != nil {
-			if a, err := e.Session.Cache().CreateAsset(loc); err == nil && a != nil {
-				if edge, err := e.Session.Cache().CreateEdge(&dbt.Edge{
+			if a, err := e.Session.DB().CreateAsset(ctx, loc); err == nil && a != nil {
+				if edge, err := e.Session.DB().CreateEdge(ctx, &dbt.Edge{
 					Relation:   &general.SimpleRelation{Name: "location"},
 					FromEntity: cr,
 					ToEntity:   a,
 				}); err == nil && edge != nil {
-					_, _ = e.Session.Cache().CreateEdgeProperty(edge, &general.SourceProperty{
+					_, _ = e.Session.DB().CreateEdgeProperty(ctx, edge, &general.SourceProperty{
 						Source:     src.Name,
 						Confidence: src.Confidence,
 					})
@@ -377,13 +390,13 @@ func (te *tlsexpand) storeContact(e *et.Event, c *tlsContact, asset *dbt.Entity,
 	}
 	if len(ct.OrganizationalUnit) > 0 && ct.OrganizationalUnit[0] != "" && m.IsMatch(string(oam.URL)) {
 		if u := support.ExtractURLFromString(ct.OrganizationalUnit[0]); u != nil {
-			if a, err := e.Session.Cache().CreateAsset(u); err == nil && a != nil {
-				if edge, err := e.Session.Cache().CreateEdge(&dbt.Edge{
+			if a, err := e.Session.DB().CreateAsset(ctx, u); err == nil && a != nil {
+				if edge, err := e.Session.DB().CreateEdge(ctx, &dbt.Edge{
 					Relation:   &general.SimpleRelation{Name: "url"},
 					FromEntity: cr,
 					ToEntity:   a,
 				}); err == nil && edge != nil {
-					_, _ = e.Session.Cache().CreateEdgeProperty(edge, &general.SourceProperty{
+					_, _ = e.Session.DB().CreateEdgeProperty(ctx, edge, &general.SourceProperty{
 						Source:     src.Name,
 						Confidence: src.Confidence,
 					})

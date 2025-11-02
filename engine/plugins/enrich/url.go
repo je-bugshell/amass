@@ -5,6 +5,7 @@
 package enrich
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/netip"
@@ -175,8 +176,11 @@ func (u *urlexpand) store(e *et.Event, tstr string, asset *dbt.Entity, m *config
 	oamu := asset.Asset.(*url.URL)
 	var findings []*support.Finding
 
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	if tstr == string(oam.FQDN) && m.IsMatch(string(oam.FQDN)) {
-		if a, err := e.Session.Cache().CreateAsset(&oamdns.FQDN{Name: oamu.Host}); err == nil && a != nil {
+		if a, err := e.Session.DB().CreateAsset(ctx, &oamdns.FQDN{Name: oamu.Host}); err == nil && a != nil {
 			findings = append(findings, &support.Finding{
 				From:     asset,
 				FromName: "URL: " + oamu.Raw,
@@ -191,7 +195,7 @@ func (u *urlexpand) store(e *et.Event, tstr string, asset *dbt.Entity, m *config
 			ntype = "IPv6"
 		}
 
-		if a, err := e.Session.Cache().CreateAsset(&oamnet.IPAddress{
+		if a, err := e.Session.DB().CreateAsset(ctx, &oamnet.IPAddress{
 			Address: ip,
 			Type:    ntype,
 		}); err == nil && a != nil {

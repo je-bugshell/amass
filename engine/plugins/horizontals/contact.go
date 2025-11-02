@@ -5,7 +5,9 @@
 package horizontals
 
 import (
+	"context"
 	"errors"
+	"time"
 
 	"github.com/owasp-amass/amass/v5/engine/sessions/scope"
 	et "github.com/owasp-amass/amass/v5/engine/types"
@@ -61,16 +63,19 @@ func (h *horContact) check(e *et.Event) error {
 func (h *horContact) lookup(e *et.Event, entity *dbt.Entity, conf int) []*scope.Association {
 	labels := []string{"organization", "location", "id"}
 
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	var results []*scope.Association
-	if edges, err := e.Session.Cache().OutgoingEdges(entity,
-		e.Session.Cache().StartTime(), labels...); err == nil && len(edges) > 0 {
+	if edges, err := e.Session.DB().OutgoingEdges(ctx, entity,
+		e.Session.StartTime(), labels...); err == nil && len(edges) > 0 {
 		for _, edge := range edges {
-			entity, err := e.Session.Cache().FindEntityById(edge.ToEntity.ID)
+			entity, err := e.Session.DB().FindEntityById(ctx, edge.ToEntity.ID)
 			if err != nil {
 				continue
 			}
 			// check if these asset discoveries could change the scope
-			if assocs, err := e.Session.Scope().IsAssociated(e.Session.Cache(), &scope.Association{
+			if assocs, err := e.Session.Scope().IsAssociated(e.Session.DB(), &scope.Association{
 				Submission:  entity,
 				Confidence:  conf,
 				ScopeChange: true,

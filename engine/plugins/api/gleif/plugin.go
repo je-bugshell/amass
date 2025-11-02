@@ -5,6 +5,7 @@
 package gleif
 
 import (
+	"context"
 	"errors"
 
 	et "github.com/owasp-amass/amass/v5/engine/types"
@@ -70,8 +71,8 @@ func (g *gleif) Stop() {
 	g.log.Info("Plugin stopped")
 }
 
-func (g *gleif) createRelation(session et.Session, obj *dbt.Entity, rel oam.Relation, subject *dbt.Entity, conf int) error {
-	edge, err := session.Cache().CreateEdge(&dbt.Edge{
+func (g *gleif) createRelation(ctx context.Context, session et.Session, obj *dbt.Entity, rel oam.Relation, subject *dbt.Entity, conf int) error {
+	edge, err := session.DB().CreateEdge(ctx, &dbt.Edge{
 		Relation:   rel,
 		FromEntity: obj,
 		ToEntity:   subject,
@@ -82,7 +83,7 @@ func (g *gleif) createRelation(session et.Session, obj *dbt.Entity, rel oam.Rela
 		return errors.New("failed to create the edge")
 	}
 
-	_, err = session.Cache().CreateEdgeProperty(edge, &general.SourceProperty{
+	_, err = session.DB().CreateEdgeProperty(ctx, edge, &general.SourceProperty{
 		Source:     g.source.Name,
 		Confidence: conf,
 	})

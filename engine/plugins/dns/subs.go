@@ -5,6 +5,7 @@
 package dns
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"strings"
@@ -96,7 +97,12 @@ func (d *dnsSubs) registered(e *et.Event, name string) string {
 		}
 	}
 
-	fqdns, err := e.Session.Cache().FindEntitiesByContent(&oamdns.FQDN{Name: name}, time.Time{})
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	fqdns, err := e.Session.DB().FindOneEntityByContent(ctx, string(oam.FQDN), time.Time{}, dbt.ContentFilters{
+		"name": name,
+	})
 	if err != nil || len(fqdns) != 1 {
 		return ""
 	}
@@ -104,7 +110,7 @@ func (d *dnsSubs) registered(e *et.Event, name string) string {
 
 	var rels []*dbt.Edge
 	// allow name servers and mail servers to be investigated like in-scope assets
-	if edges, err := e.Session.Cache().IncomingEdges(fqdn, time.Time{}, "dns_record"); err == nil && len(edges) > 0 {
+	if edges, err := e.Session.DB().IncomingEdges(ctx, fqdn, time.Time{}, "dns_record"); err == nil && len(edges) > 0 {
 		for _, edge := range edges {
 			if r, ok := edge.Relation.(*oamdns.PrefDNSRelation); ok {
 				if r.Header.RRType == int(dns.TypeNS) || r.Header.RRType == int(dns.TypeMX) {
@@ -116,7 +122,7 @@ func (d *dnsSubs) registered(e *et.Event, name string) string {
 
 	var inscope bool
 	for _, r := range rels {
-		from, err := e.Session.Cache().FindEntityById(r.FromEntity.ID)
+		from, err := e.Session.DB().FindEntityById(ctx, r.FromEntity.ID)
 		if err != nil {
 			continue
 		}
@@ -164,11 +170,15 @@ func (d *dnsSubs) traverse(e *et.Event, dom string, fqdn *dbt.Entity, since time
 func (d *dnsSubs) lookup(e *et.Event, subdomain string, since time.Time) []*relSubs {
 	var alias []*relSubs
 
-	fqdns, err := e.Session.Cache().FindEntitiesByContent(&oamdns.FQDN{Name: subdomain}, time.Time{})
-	if err != nil || len(fqdns) != 1 {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	fqdn, err := e.Session.DB().FindOneEntityByContent(ctx, string(oam.FQDN), time.Time{}, dbt.ContentFilters{
+		"name": subdomain,
+	})
+	if err != nil || fqdn == nil {
 		return alias
 	}
-	fqdn := fqdns[0]
 
 	n := fqdn.Asset.Key()
 	// Check for NS records within the since period
@@ -234,7 +244,10 @@ func (d *dnsSubs) query(e *et.Event, subdomain string) []*relSubs {
 func (d *dnsSubs) store(e *et.Event, name string, rr []dns.RR) []*relSubs {
 	var alias []*relSubs
 
-	fqdn, err := e.Session.Cache().CreateAsset(&oamdns.FQDN{Name: name})
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	fqdn, err := e.Session.DB().CreateAsset(ctx, &oamdns.FQDN{Name: name})
 	if err != nil || fqdn == nil {
 		return alias
 	}
@@ -246,9 +259,9 @@ func (d *dnsSubs) store(e *et.Event, name string, rr []dns.RR) []*relSubs {
 		if record.Header().Rrtype == dns.TypeNS {
 			data := utils.RemoveLastDot((record.(*dns.NS)).Ns)
 
-			a, err = e.Session.Cache().CreateAsset(&oamdns.FQDN{Name: data})
+			a, err = e.Session.DB().CreateAsset(ctx, &oamdns.FQDN{Name: data})
 			if err == nil && a != nil {
-				edge, err = e.Session.Cache().CreateEdge(&dbt.Edge{
+				edge, err = e.Session.DB().CreateEdge(ctx, &dbt.Edge{
 					Relation: &oamdns.BasicDNSRelation{
 						Name: "dns_record",
 						Header: oamdns.RRHeader{
@@ -264,9 +277,9 @@ func (d *dnsSubs) store(e *et.Event, name string, rr []dns.RR) []*relSubs {
 		} else if record.Header().Rrtype == dns.TypeMX {
 			data := utils.RemoveLastDot((record.(*dns.MX)).Mx)
 
-			a, err = e.Session.Cache().CreateAsset(&oamdns.FQDN{Name: data})
+			a, err = e.Session.DB().CreateAsset(ctx, &oamdns.FQDN{Name: data})
 			if err == nil && a != nil {
-				edge, err = e.Session.Cache().CreateEdge(&dbt.Edge{
+				edge, err = e.Session.DB().CreateEdge(ctx, &dbt.Edge{
 					Relation: &oamdns.PrefDNSRelation{
 						Name: "dns_record",
 						Header: oamdns.RRHeader{
@@ -286,7 +299,7 @@ func (d *dnsSubs) store(e *et.Event, name string, rr []dns.RR) []*relSubs {
 
 		if err == nil && edge != nil {
 			alias = append(alias, &relSubs{rtype: "dns_record", alias: fqdn, target: a})
-			_, _ = e.Session.Cache().CreateEdgeProperty(edge, &general.SourceProperty{
+			_, _ = e.Session.DB().CreateEdgeProperty(ctx, edge, &general.SourceProperty{
 				Source:     d.plugin.source.Name,
 				Confidence: d.plugin.source.Confidence,
 			})

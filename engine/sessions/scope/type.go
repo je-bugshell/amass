@@ -6,12 +6,15 @@ package scope
 
 import (
 	"sync"
+	"time"
 
 	"github.com/owasp-amass/amass/v5/config"
 	oam "github.com/owasp-amass/open-asset-model"
 )
 
 type Scope struct {
+	startTime time.Time
+
 	orgLock sync.Mutex
 	orgs    map[string]oam.Asset
 
@@ -34,8 +37,9 @@ type Scope struct {
 	fingerprints map[string]map[string]*Fingerprint
 }
 
-func New() *Scope {
+func New(startTime time.Time) *Scope {
 	return &Scope{
+		startTime:    startTime,
 		orgs:         make(map[string]oam.Asset),
 		domains:      make(map[string]oam.Asset),
 		addresses:    make(map[string]oam.Asset),
@@ -46,8 +50,8 @@ func New() *Scope {
 	}
 }
 
-func CreateFromConfigScope(config *config.Config) *Scope {
-	scope := New()
+func CreateFromConfigScope(config *config.Config, startTime time.Time) *Scope {
+	scope := New(startTime)
 
 	for _, d := range config.Domains() {
 		scope.AddDomain(d)

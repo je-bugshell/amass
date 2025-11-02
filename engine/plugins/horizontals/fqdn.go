@@ -5,8 +5,10 @@
 package horizontals
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/miekg/dns"
 	"github.com/owasp-amass/amass/v5/engine/plugins/support"
@@ -35,8 +37,11 @@ func (h *horfqdn) check(e *et.Event) error {
 		return errors.New("failed to extract the FQDN asset")
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
 	var ptrs []*dbt.Edge
-	if edges, err := e.Session.Cache().OutgoingEdges(e.Entity, e.Session.Cache().StartTime(), "dns_record"); err == nil {
+	if edges, err := e.Session.DB().OutgoingEdges(ctx, e.Entity, e.Session.StartTime(), "dns_record"); err == nil {
 		for _, edge := range edges {
 			if rel, ok := edge.Relation.(*oamdns.BasicDNSRelation); ok && rel.Header.RRType == 12 {
 				ptrs = append(ptrs, edge)
@@ -81,9 +86,9 @@ func (h *horfqdn) check(e *et.Event) error {
 
 		var assets []*dbt.Entity
 		for _, im := range impacted {
-			if a, err := e.Session.Cache().FindEntitiesByContent(im.Asset,
-				e.Session.Cache().StartTime()); err == nil && len(a) == 1 {
-				assets = append(assets, a[0])
+			if a, err := e.Session.DB().FindOneEntityByContent(ctx, string(im.Asset.AssetType()),
+				e.Session.StartTime(), assetToContentFilters(im.Asset)); err == nil && a != nil {
+				assets = append(assets, a)
 			} else if n := h.store(e, im.Asset); n != nil {
 				assets = append(assets, n)
 			}
@@ -98,9 +103,12 @@ func (h *horfqdn) check(e *et.Event) error {
 }
 
 func (h *horfqdn) checkPTR(e *et.Event, edges []*dbt.Edge, fqdn *dbt.Entity) {
-	if ins, err := e.Session.Cache().IncomingEdges(fqdn, e.Session.Cache().StartTime(), "ptr_record"); err == nil && len(ins) > 0 {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if ins, err := e.Session.DB().IncomingEdges(ctx, fqdn, e.Session.StartTime(), "ptr_record"); err == nil && len(ins) > 0 {
 		for _, r := range ins {
-			from, err := e.Session.Cache().FindEntityById(r.FromEntity.ID)
+			from, err := e.Session.DB().FindEntityById(ctx, r.FromEntity.ID)
 			if err != nil {
 				continue
 			}
@@ -116,7 +124,7 @@ func (h *horfqdn) checkPTR(e *et.Event, edges []*dbt.Edge, fqdn *dbt.Entity) {
 			}
 
 			for _, edge := range edges {
-				to, err := e.Session.Cache().FindEntityById(edge.ToEntity.ID)
+				to, err := e.Session.DB().FindEntityById(ctx, edge.ToEntity.ID)
 				if err != nil {
 					continue
 				}
@@ -144,7 +152,7 @@ func (h *horfqdn) checkPTR(e *et.Event, edges []*dbt.Edge, fqdn *dbt.Entity) {
 }
 
 func (h *horfqdn) lookup(e *et.Event, asset *dbt.Entity, conf int) []*scope.Association {
-	assocs, err := e.Session.Scope().IsAssociated(e.Session.Cache(), &scope.Association{
+	assocs, err := e.Session.Scope().IsAssociated(e.Session.DB(), &scope.Association{
 		Submission:  asset,
 		Confidence:  conf,
 		ScopeChange: true,
@@ -156,12 +164,15 @@ func (h *horfqdn) lookup(e *et.Event, asset *dbt.Entity, conf int) []*scope.Asso
 }
 
 func (h *horfqdn) store(e *et.Event, asset oam.Asset) *dbt.Entity {
-	a, err := e.Session.Cache().CreateAsset(asset)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	a, err := e.Session.DB().CreateAsset(ctx, asset)
 	if err != nil || a == nil {
 		return nil
 	}
 
-	_, _ = e.Session.Cache().CreateEntityProperty(a, &general.SourceProperty{
+	_, _ = e.Session.DB().CreateEntityProperty(ctx, a, &general.SourceProperty{
 		Source:     h.plugin.source.Name,
 		Confidence: h.plugin.source.Confidence,
 	})

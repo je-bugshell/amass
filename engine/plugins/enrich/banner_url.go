@@ -5,9 +5,11 @@
 package enrich
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/netip"
+	"time"
 
 	"github.com/owasp-amass/amass/v5/engine/plugins/support"
 	et "github.com/owasp-amass/amass/v5/engine/types"
@@ -114,10 +116,13 @@ func (bu *bannerURLs) query(e *et.Event, asset *dbt.Entity) []*dbt.Entity {
 func (bu *bannerURLs) store(e *et.Event, urls []*oamurl.URL) []*dbt.Entity {
 	var assets []*dbt.Entity
 
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
 	for _, u := range urls {
-		if a, err := e.Session.Cache().CreateAsset(u); err == nil && a != nil {
+		if a, err := e.Session.DB().CreateAsset(ctx, u); err == nil && a != nil {
 			assets = append(assets, a)
-			_, _ = e.Session.Cache().CreateEntityProperty(a, &general.SourceProperty{
+			_, _ = e.Session.DB().CreateEntityProperty(ctx, a, &general.SourceProperty{
 				Source:     bu.source.Name,
 				Confidence: bu.source.Confidence,
 			})
@@ -129,7 +134,7 @@ func (bu *bannerURLs) store(e *et.Event, urls []*oamurl.URL) []*dbt.Entity {
 
 func (bu *bannerURLs) process(e *et.Event, assets []*dbt.Entity) {
 	for _, a := range assets {
-		if u, ok := a.Asset.(*oamurl.URL); ok && e.Session.Scope().IsURLInScope(e.Session.Cache(), u) {
+		if u, ok := a.Asset.(*oamurl.URL); ok && e.Session.Scope().IsURLInScope(e.Session.DB(), u) {
 			bu.processOneURL(e, u.Raw, a)
 		}
 	}

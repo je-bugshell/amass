@@ -8,12 +8,12 @@ import (
 	"log/slog"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/owasp-amass/amass/v5/config"
 	"github.com/owasp-amass/amass/v5/engine/pubsub"
 	"github.com/owasp-amass/amass/v5/engine/sessions/scope"
-	"github.com/owasp-amass/asset-db/cache"
 	"github.com/owasp-amass/asset-db/repository"
 	dbt "github.com/owasp-amass/asset-db/types"
 	oam "github.com/owasp-amass/open-asset-model"
@@ -26,8 +26,8 @@ type Session interface {
 	PubSub() *pubsub.Logger
 	Config() *config.Config
 	Scope() *scope.Scope
+	StartTime() time.Time
 	DB() repository.Repository
-	Cache() *cache.Cache
 	Queue() SessionQueue
 	CIDRanger() cidranger.Ranger
 	TmpDir() string

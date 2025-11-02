@@ -5,6 +5,7 @@
 package sessions
 
 import (
+	"context"
 	"errors"
 	"path/filepath"
 
@@ -69,7 +70,7 @@ func (sq *sessionQueue) Next(atype oam.AssetType, num int) ([]*dbt.Entity, error
 
 	var results []*dbt.Entity
 	for _, id := range ids {
-		if e, err := sq.session.Cache().FindEntityById(id); err == nil {
+		if e, err := sq.session.DB().FindEntityById(context.Background(), id); err == nil {
 			results = append(results, e)
 		}
 	}

@@ -5,6 +5,7 @@
 package org
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"regexp"
@@ -15,6 +16,7 @@ import (
 	"github.com/adrg/strutil/metrics"
 	et "github.com/owasp-amass/amass/v5/engine/types"
 	dbt "github.com/owasp-amass/asset-db/types"
+	oam "github.com/owasp-amass/open-asset-model"
 	"github.com/owasp-amass/open-asset-model/general"
 	"github.com/owasp-amass/open-asset-model/org"
 )
@@ -99,9 +101,12 @@ func NameMatch(session et.Session, orgent *dbt.Entity, names []string) ([]string
 		orgNames = append(orgNames, o.LegalName)
 	}
 
-	if edges, err := session.Cache().OutgoingEdges(orgent, time.Time{}, "id"); err == nil && len(edges) > 0 {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if edges, err := session.DB().OutgoingEdges(ctx, orgent, time.Time{}, "id"); err == nil && len(edges) > 0 {
 		for _, edge := range edges {
-			if a, err := session.Cache().FindEntityById(edge.ToEntity.ID); err == nil && a != nil {
+			if a, err := session.DB().FindEntityById(ctx, edge.ToEntity.ID); err == nil && a != nil {
 				if id, ok := a.Asset.(*general.Identifier); ok &&
 					(id.Type == general.OrganizationName || id.Type == general.LegalName) {
 					orgNames = append(orgNames, id.ID)
@@ -143,6 +148,8 @@ func NameMatch(session et.Session, orgent *dbt.Entity, names []string) ([]string
 
 func orgsWithSameNames(session et.Session, names []string) ([]*dbt.Entity, error) {
 	var idents []*dbt.Entity
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	for _, n := range names {
 		if n == "" {
@@ -151,11 +158,9 @@ func orgsWithSameNames(session et.Session, names []string) ([]*dbt.Entity, error
 		name := strings.ToLower(n)
 
 		// check for known organization name identifiers
-		if assets, err := session.Cache().FindEntitiesByContent(&general.Identifier{
-			UniqueID: fmt.Sprintf("%s:%s", general.OrganizationName, name),
-			ID:       name,
-			Type:     general.OrganizationName,
-		}, time.Time{}); err == nil {
+		if assets, err := session.DB().FindEntitiesByContent(ctx, string(oam.Identifier), time.Time{}, dbt.ContentFilters{
+			"unique_id": fmt.Sprintf("%s:%s", general.OrganizationName, name),
+		}); err == nil {
 			for _, a := range assets {
 				if _, ok := a.Asset.(*general.Identifier); ok {
 					idents = append(idents, a)
@@ -164,11 +169,9 @@ func orgsWithSameNames(session et.Session, names []string) ([]*dbt.Entity, error
 		}
 
 		// check for known legal name identifiers
-		if assets, err := session.Cache().FindEntitiesByContent(&general.Identifier{
-			UniqueID: fmt.Sprintf("%s:%s", general.LegalName, name),
-			ID:       name,
-			Type:     general.LegalName,
-		}, time.Time{}); err == nil {
+		if assets, err := session.DB().FindEntitiesByContent(ctx, string(oam.Identifier), time.Time{}, dbt.ContentFilters{
+			"unique_id": fmt.Sprintf("%s:%s", general.LegalName, name),
+		}); err == nil {
 			for _, a := range assets {
 				if _, ok := a.Asset.(*general.Identifier); ok {
 					idents = append(idents, a)
@@ -179,9 +182,9 @@ func orgsWithSameNames(session et.Session, names []string) ([]*dbt.Entity, error
 
 	var orgents []*dbt.Entity
 	for _, ident := range idents {
-		if edges, err := session.Cache().IncomingEdges(ident, time.Time{}, "id"); err == nil {
+		if edges, err := session.DB().IncomingEdges(ctx, ident, time.Time{}, "id"); err == nil {
 			for _, edge := range edges {
-				if a, err := session.Cache().FindEntityById(edge.FromEntity.ID); err == nil && a != nil {
+				if a, err := session.DB().FindEntityById(ctx, edge.FromEntity.ID); err == nil && a != nil {
 					if _, ok := a.Asset.(*org.Organization); ok {
 						orgents = append(orgents, a)
 					}

@@ -5,6 +5,7 @@
 package rdap
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
@@ -202,7 +203,10 @@ func (rd *rdapPlugin) storeEntity(e *et.Event, level int, entity *rdap.Entity, a
 		return
 	}
 
-	cr, err := e.Session.Cache().CreateAsset(&contact.ContactRecord{DiscoveredAt: u.Raw})
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	cr, err := e.Session.DB().CreateAsset(ctx, &contact.ContactRecord{DiscoveredAt: u.Raw})
 	if err != nil || cr == nil {
 		return
 	}
@@ -216,11 +220,11 @@ func (rd *rdapPlugin) storeEntity(e *et.Event, level int, entity *rdap.Entity, a
 	}
 
 	if m.IsMatch(string(oam.URL)) {
-		a, err := e.Session.Cache().CreateAsset(u)
+		a, err := e.Session.DB().CreateAsset(ctx, u)
 		if err != nil {
 			return
 		}
-		_ = rd.createContactEdge(e.Session, cr, a, &general.SimpleRelation{Name: "url"}, src)
+		_ = rd.createContactEdge(ctx, e.Session, cr, a, &general.SimpleRelation{Name: "url"}, src)
 	}
 
 	v := entity.VCard
@@ -235,32 +239,32 @@ func (rd *rdapPlugin) storeEntity(e *et.Event, level int, entity *rdap.Entity, a
 
 			addr := strings.Join(strings.Split(s, "\n"), " ")
 			if loc := support.StreetAddressToLocation(addr); loc != nil {
-				if a, err := e.Session.Cache().CreateAsset(loc); err == nil && a != nil {
-					_ = rd.createContactEdge(e.Session, cr, a, &general.SimpleRelation{Name: "location"}, src)
+				if a, err := e.Session.DB().CreateAsset(ctx, loc); err == nil && a != nil {
+					_ = rd.createContactEdge(ctx, e.Session, cr, a, &general.SimpleRelation{Name: "location"}, src)
 				}
 			}
 		}
 	}
 	if email := strings.ToLower(v.Email()); m.IsMatch(string(oam.Identifier)) && email != "" {
-		if a, err := e.Session.Cache().CreateAsset(&general.Identifier{
+		if a, err := e.Session.DB().CreateAsset(ctx, &general.Identifier{
 			UniqueID: fmt.Sprintf("%s:%s", general.EmailAddress, email),
 			ID:       email,
 			Type:     general.EmailAddress,
 		}); err == nil && a != nil {
-			_ = rd.createContactEdge(e.Session, cr, a, &general.SimpleRelation{Name: "id"}, src)
+			_ = rd.createContactEdge(ctx, e.Session, cr, a, &general.SimpleRelation{Name: "id"}, src)
 		}
 	}
 	if m.IsMatch(string(oam.Phone)) {
 		if phone := support.PhoneToOAMPhone(v.Tel(), "", v.Country()); phone != nil {
 			phone.Type = contact.PhoneTypeRegular
-			if a, err := e.Session.Cache().CreateAsset(phone); err == nil && a != nil {
-				_ = rd.createContactEdge(e.Session, cr, a, &general.SimpleRelation{Name: "phone"}, src)
+			if a, err := e.Session.DB().CreateAsset(ctx, phone); err == nil && a != nil {
+				_ = rd.createContactEdge(ctx, e.Session, cr, a, &general.SimpleRelation{Name: "phone"}, src)
 			}
 		}
 		if fax := support.PhoneToOAMPhone(v.Fax(), "", v.Country()); fax != nil {
 			fax.Type = contact.PhoneTypeFax
-			if a, err := e.Session.Cache().CreateAsset(fax); err == nil && a != nil {
-				_ = rd.createContactEdge(e.Session, cr, a, &general.SimpleRelation{Name: "phone"}, src)
+			if a, err := e.Session.DB().CreateAsset(ctx, fax); err == nil && a != nil {
+				_ = rd.createContactEdge(ctx, e.Session, cr, a, &general.SimpleRelation{Name: "phone"}, src)
 			}
 		}
 	}
@@ -280,8 +284,8 @@ func (rd *rdapPlugin) storeEntity(e *et.Event, level int, entity *rdap.Entity, a
 	// the organization must come last due to a potential chicken-and-egg problem
 	if kind := strings.Join(prop.Values(), " "); m.IsMatch(string(oam.Person)) && name != "" && kind == "individual" {
 		if p := support.FullNameToPerson(name); p != nil {
-			if a, err := e.Session.Cache().CreateAsset(p); err == nil && a != nil {
-				_ = rd.createContactEdge(e.Session, cr, a, &general.SimpleRelation{Name: "person"}, src)
+			if a, err := e.Session.DB().CreateAsset(ctx, p); err == nil && a != nil {
+				_ = rd.createContactEdge(ctx, e.Session, cr, a, &general.SimpleRelation{Name: "person"}, src)
 				_ = e.Dispatcher.DispatchEvent(&et.Event{
 					Name:    fmt.Sprintf("%s:%s", p.FullName, p.ID),
 					Entity:  a,
@@ -321,8 +325,8 @@ func (rd *rdapPlugin) getJSONLink(links []rdap.Link) *url.URL {
 	return url
 }
 
-func (rd *rdapPlugin) createContactEdge(sess et.Session, cr, a *dbt.Entity, rel oam.Relation, src *et.Source) error {
-	edge, err := sess.Cache().CreateEdge(&dbt.Edge{
+func (rd *rdapPlugin) createContactEdge(ctx context.Context, sess et.Session, cr, a *dbt.Entity, rel oam.Relation, src *et.Source) error {
+	edge, err := sess.DB().CreateEdge(ctx, &dbt.Edge{
 		Relation:   rel,
 		FromEntity: cr,
 		ToEntity:   a,
@@ -333,7 +337,7 @@ func (rd *rdapPlugin) createContactEdge(sess et.Session, cr, a *dbt.Entity, rel 
 		return errors.New("failed to create the edge")
 	}
 
-	_, err = sess.Cache().CreateEdgeProperty(edge, &general.SourceProperty{
+	_, err = sess.DB().CreateEdgeProperty(ctx, edge, &general.SourceProperty{
 		Source:     src.Name,
 		Confidence: src.Confidence,
 	})

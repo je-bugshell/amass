@@ -5,6 +5,7 @@
 package gleif
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -49,12 +50,15 @@ func (ro *relatedOrgs) check(e *et.Event) error {
 func (ro *relatedOrgs) lookup(e *et.Event, ident *dbt.Entity, since time.Time) []*dbt.Entity {
 	var o *dbt.Entity
 
-	if edges, err := e.Session.Cache().IncomingEdges(ident, since, "id"); err == nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if edges, err := e.Session.DB().IncomingEdges(ctx, ident, since, "id"); err == nil {
 		for _, edge := range edges {
-			if tags, err := e.Session.Cache().GetEdgeTags(edge, since, ro.plugin.source.Name); err != nil || len(tags) == 0 {
+			if tags, err := e.Session.DB().FindEdgeTags(ctx, edge, since, ro.plugin.source.Name); err != nil || len(tags) == 0 {
 				continue
 			}
-			if a, err := e.Session.Cache().FindEntityById(edge.FromEntity.ID); err == nil && a != nil {
+			if a, err := e.Session.DB().FindEntityById(ctx, edge.FromEntity.ID); err == nil && a != nil {
 				if _, ok := a.Asset.(*oamorg.Organization); ok {
 					o = a
 					break
@@ -64,12 +68,12 @@ func (ro *relatedOrgs) lookup(e *et.Event, ident *dbt.Entity, since time.Time) [
 	}
 
 	var p *dbt.Entity
-	if edges, err := e.Session.Cache().IncomingEdges(o, since, "subsidiary"); err == nil {
+	if edges, err := e.Session.DB().IncomingEdges(ctx, o, since, "subsidiary"); err == nil {
 		for _, edge := range edges {
-			if tags, err := e.Session.Cache().GetEdgeTags(edge, since, ro.plugin.source.Name); err != nil || len(tags) == 0 {
+			if tags, err := e.Session.DB().FindEdgeTags(ctx, edge, since, ro.plugin.source.Name); err != nil || len(tags) == 0 {
 				continue
 			}
-			if a, err := e.Session.Cache().FindEntityById(edge.FromEntity.ID); err == nil && a != nil {
+			if a, err := e.Session.DB().FindEntityById(ctx, edge.FromEntity.ID); err == nil && a != nil {
 				if _, ok := a.Asset.(*oamorg.Organization); ok {
 					p = a
 					break
@@ -79,12 +83,12 @@ func (ro *relatedOrgs) lookup(e *et.Event, ident *dbt.Entity, since time.Time) [
 	}
 
 	var children []*dbt.Entity
-	if edges, err := e.Session.Cache().OutgoingEdges(o, since, "subsidiary"); err == nil {
+	if edges, err := e.Session.DB().OutgoingEdges(ctx, o, since, "subsidiary"); err == nil {
 		for _, edge := range edges {
-			if tags, err := e.Session.Cache().GetEdgeTags(edge, since, ro.plugin.source.Name); err != nil || len(tags) == 0 {
+			if tags, err := e.Session.DB().FindEdgeTags(ctx, edge, since, ro.plugin.source.Name); err != nil || len(tags) == 0 {
 				continue
 			}
-			if a, err := e.Session.Cache().FindEntityById(edge.ToEntity.ID); err == nil && a != nil {
+			if a, err := e.Session.DB().FindEntityById(ctx, edge.ToEntity.ID); err == nil && a != nil {
 				if _, ok := a.Asset.(*oamorg.Organization); ok {
 					children = append(children, a)
 				}
@@ -119,7 +123,7 @@ func (ro *relatedOrgs) store(e *et.Event, ident *dbt.Entity, parent *org.LEIReco
 			orgs = append(orgs, parentent)
 			ro.plugin.updateOrgFromLEIRecord(e, parentent, parent, ro.plugin.source.Confidence)
 			support.MarkAssetMonitored(e.Session, parentent, ro.plugin.source)
-			_ = ro.plugin.createRelation(e.Session, parentent,
+			_ = ro.plugin.createRelation(context.Background(), e.Session, parentent,
 				&general.SimpleRelation{Name: "subsidiary"}, orgent, ro.plugin.source.Confidence)
 		}
 	}

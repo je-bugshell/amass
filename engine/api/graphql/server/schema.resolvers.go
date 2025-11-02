@@ -93,7 +93,7 @@ func (r *mutationResolver) CreateAsset(ctx context.Context, input model.CreateAs
 		return nil, err
 	}
 
-	dba, err := session.Cache().CreateAsset(assetData.OAMAsset)
+	dba, err := session.DB().CreateAsset(ctx, assetData.OAMAsset)
 	if err != nil {
 		return nil, err
 	}

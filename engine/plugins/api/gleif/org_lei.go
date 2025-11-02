@@ -5,6 +5,7 @@
 package gleif
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -21,9 +22,12 @@ import (
 )
 
 func (g *gleif) orgEntityToLEI(e *et.Event, orgent *dbt.Entity) *dbt.Entity {
-	if edges, err := e.Session.Cache().OutgoingEdges(orgent, time.Time{}, "id"); err == nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if edges, err := e.Session.DB().OutgoingEdges(ctx, orgent, time.Time{}, "id"); err == nil {
 		for _, edge := range edges {
-			if a, err := e.Session.Cache().FindEntityById(edge.ToEntity.ID); err == nil && a != nil {
+			if a, err := e.Session.DB().FindEntityById(ctx, edge.ToEntity.ID); err == nil && a != nil {
 				if id, ok := a.Asset.(*general.Identifier); ok && id.Type == general.LEICode {
 					return a
 				}
@@ -34,9 +38,12 @@ func (g *gleif) orgEntityToLEI(e *et.Event, orgent *dbt.Entity) *dbt.Entity {
 }
 
 func (g *gleif) leiToOrgEntity(e *et.Event, ident *dbt.Entity) *dbt.Entity {
-	if edges, err := e.Session.Cache().IncomingEdges(ident, time.Time{}, "id"); err == nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if edges, err := e.Session.DB().IncomingEdges(ctx, ident, time.Time{}, "id"); err == nil {
 		for _, edge := range edges {
-			if a, err := e.Session.Cache().FindEntityById(edge.FromEntity.ID); err == nil && a != nil {
+			if a, err := e.Session.DB().FindEntityById(ctx, edge.FromEntity.ID); err == nil && a != nil {
 				if _, ok := a.Asset.(*oamorg.Organization); ok {
 					return a
 				}
@@ -102,7 +109,7 @@ func (g *gleif) updateOrgFromLEIRecord(e *et.Event, orgent *dbt.Entity, lei *org
 	_ = g.addIdentifiersToOrg(e, orgent, general.SPGlobalCompanyID, lei.Attributes.SPGlobal, conf)
 
 	// update the Organization
-	if _, err := e.Session.Cache().CreateEntity(orgent); err != nil {
+	if _, err := e.Session.DB().CreateEntity(context.Background(), orgent); err != nil {
 		msg := fmt.Sprintf("failed to update the Organization asset for %s: %s", o.Name, err)
 		e.Session.Log().Error(msg, slog.Group("plugin", "name", g.name, "handler", g.name))
 	}
@@ -114,18 +121,21 @@ func (g *gleif) addAddress(e *et.Event, orgent *dbt.Entity, rel oam.Relation, ad
 		return errors.New("failed to create location")
 	}
 
-	a, err := e.Session.Cache().CreateAsset(loc)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	a, err := e.Session.DB().CreateAsset(ctx, loc)
 	if err != nil || a == nil {
 		e.Session.Log().Error(err.Error(), slog.Group("plugin", "name", g.name, "handler", g.name))
 		return err
 	}
 
-	_, _ = e.Session.Cache().CreateEntityProperty(a, &general.SourceProperty{
+	_, _ = e.Session.DB().CreateEntityProperty(ctx, a, &general.SourceProperty{
 		Source:     g.source.Name,
 		Confidence: conf,
 	})
 
-	if err := g.createRelation(e.Session, orgent, rel, a, conf); err != nil {
+	if err := g.createRelation(ctx, e.Session, orgent, rel, a, conf); err != nil {
 		e.Session.Log().Error(err.Error(), slog.Group("plugin", "name", g.name, "handler", g.name))
 		return err
 	}
@@ -134,6 +144,9 @@ func (g *gleif) addAddress(e *et.Event, orgent *dbt.Entity, rel oam.Relation, ad
 }
 
 func (g *gleif) addIdentifiersToOrg(e *et.Event, orgent *dbt.Entity, idtype string, ids []string, conf int) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
 	for _, id := range ids {
 		if id == "" {
 			continue
@@ -145,17 +158,17 @@ func (g *gleif) addIdentifiersToOrg(e *et.Event, orgent *dbt.Entity, idtype stri
 			Type:     idtype,
 		}
 
-		ident, err := e.Session.Cache().CreateAsset(oamid)
+		ident, err := e.Session.DB().CreateAsset(ctx, oamid)
 		if err != nil || ident == nil {
 			return err
 		}
 
-		_, _ = e.Session.Cache().CreateEntityProperty(ident, &general.SourceProperty{
+		_, _ = e.Session.DB().CreateEntityProperty(ctx, ident, &general.SourceProperty{
 			Source:     g.source.Name,
 			Confidence: conf,
 		})
 
-		if err := g.createRelation(e.Session, orgent, general.SimpleRelation{Name: "id"}, ident, conf); err != nil {
+		if err := g.createRelation(ctx, e.Session, orgent, general.SimpleRelation{Name: "id"}, ident, conf); err != nil {
 			return err
 		}
 	}

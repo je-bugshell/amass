@@ -123,12 +123,15 @@ func LocMatch(e *et.Event, orgent *dbt.Entity, rec *LEIRecord) bool {
 		return false
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
 	legal_addr := rec.Attributes.Entity.LegalAddress
 	hq_addr := rec.Attributes.Entity.HeadquartersAddress
-	if edges, err := e.Session.Cache().OutgoingEdges(orgent,
+	if edges, err := e.Session.DB().OutgoingEdges(ctx, orgent,
 		time.Time{}, "legal_address", "hq_address", "location"); err == nil {
 		for _, edge := range edges {
-			if a, err := e.Session.Cache().FindEntityById(edge.ToEntity.ID); err == nil && a != nil {
+			if a, err := e.Session.DB().FindEntityById(ctx, edge.ToEntity.ID); err == nil && a != nil {
 				if loc, ok := a.Asset.(*contact.Location); ok {
 					for _, p := range append([]LEIAddress{legal_addr, hq_addr}, rec.Attributes.Entity.OtherAddresses...) {
 						if loc.PostalCode == p.PostalCode {
@@ -141,9 +144,9 @@ func LocMatch(e *et.Event, orgent *dbt.Entity, rec *LEIRecord) bool {
 	}
 
 	var crs []*dbt.Entity
-	if edges, err := e.Session.Cache().IncomingEdges(orgent, time.Time{}, "organization"); err == nil {
+	if edges, err := e.Session.DB().IncomingEdges(ctx, orgent, time.Time{}, "organization"); err == nil {
 		for _, edge := range edges {
-			if a, err := e.Session.Cache().FindEntityById(edge.FromEntity.ID); err == nil && a != nil {
+			if a, err := e.Session.DB().FindEntityById(ctx, edge.FromEntity.ID); err == nil && a != nil {
 				if _, ok := a.Asset.(*contact.ContactRecord); ok {
 					crs = append(crs, a)
 				}
@@ -152,9 +155,9 @@ func LocMatch(e *et.Event, orgent *dbt.Entity, rec *LEIRecord) bool {
 	}
 
 	for _, cr := range crs {
-		if edges, err := e.Session.Cache().OutgoingEdges(cr, time.Time{}, "location"); err == nil {
+		if edges, err := e.Session.DB().OutgoingEdges(ctx, cr, time.Time{}, "location"); err == nil {
 			for _, edge := range edges {
-				if a, err := e.Session.Cache().FindEntityById(edge.ToEntity.ID); err == nil && a != nil {
+				if a, err := e.Session.DB().FindEntityById(ctx, edge.ToEntity.ID); err == nil && a != nil {
 					if loc, ok := a.Asset.(*contact.Location); ok {
 						for _, p := range append([]LEIAddress{legal_addr, hq_addr}, rec.Attributes.Entity.OtherAddresses...) {
 							if loc.PostalCode == p.PostalCode {

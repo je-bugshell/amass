@@ -5,9 +5,11 @@
 package gleif
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/owasp-amass/amass/v5/engine/plugins/support/org"
 	et "github.com/owasp-amass/amass/v5/engine/types"
@@ -16,20 +18,23 @@ import (
 )
 
 func (g *gleif) createLEIIdentifier(session et.Session, orgent *dbt.Entity, lei *general.Identifier, conf int) (*dbt.Entity, error) {
-	id, err := session.Cache().CreateAsset(lei)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	id, err := session.DB().CreateAsset(ctx, lei)
 	if err != nil {
 		return nil, err
 	} else if id == nil {
 		return nil, errors.New("failed to create the Identifier asset")
 	}
 
-	_, _ = session.Cache().CreateEntityProperty(id, &general.SourceProperty{
+	_, _ = session.DB().CreateEntityProperty(ctx, id, &general.SourceProperty{
 		Source:     g.source.Name,
 		Confidence: conf,
 	})
 
 	if orgent != nil {
-		if err := g.createRelation(session, orgent, general.SimpleRelation{Name: "id"}, id, conf); err != nil {
+		if err := g.createRelation(ctx, session, orgent, general.SimpleRelation{Name: "id"}, id, conf); err != nil {
 			return nil, err
 		}
 	}

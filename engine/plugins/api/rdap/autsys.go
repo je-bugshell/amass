@@ -114,14 +114,17 @@ func (r *autsys) store(e *et.Event, resp *rdap.Autnum, asset *dbt.Entity) *dbt.E
 		return nil
 	}
 
-	autasset, err := e.Session.Cache().CreateAsset(autrec)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	autasset, err := e.Session.DB().CreateAsset(ctx, autrec)
 	if err == nil && autasset != nil {
-		if edge, err := e.Session.Cache().CreateEdge(&dbt.Edge{
+		if edge, err := e.Session.DB().CreateEdge(ctx, &dbt.Edge{
 			Relation:   &general.SimpleRelation{Name: "registration"},
 			FromEntity: asset,
 			ToEntity:   autasset,
 		}); err == nil && edge != nil {
-			_, _ = e.Session.Cache().CreateEdgeProperty(edge, &general.SourceProperty{
+			_, _ = e.Session.DB().CreateEdgeProperty(ctx, edge, &general.SourceProperty{
 				Source:     r.plugin.source.Name,
 				Confidence: r.plugin.source.Confidence,
 			})

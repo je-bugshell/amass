@@ -116,14 +116,17 @@ func (r *fqdnLookup) store(e *et.Event, resp string, asset *dbt.Entity, src *et.
 		dr.ExpirationDate = tstr
 	}
 
-	autasset, err := e.Session.Cache().CreateAsset(dr)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	autasset, err := e.Session.DB().CreateAsset(ctx, dr)
 	if err == nil && autasset != nil {
-		if edge, err := e.Session.Cache().CreateEdge(&dbt.Edge{
+		if edge, err := e.Session.DB().CreateEdge(ctx, &dbt.Edge{
 			Relation:   &general.SimpleRelation{Name: "registration"},
 			FromEntity: asset,
 			ToEntity:   autasset,
 		}); err == nil && edge != nil {
-			_, _ = e.Session.Cache().CreateEdgeProperty(edge, &general.SourceProperty{
+			_, _ = e.Session.DB().CreateEdgeProperty(ctx, edge, &general.SourceProperty{
 				Source:     src.Name,
 				Confidence: src.Confidence,
 			})
@@ -164,7 +167,7 @@ func (r *fqdnLookup) waitForDomRecContacts(e *et.Event, dr *dbt.Entity) {
 		}
 
 		rtypes := []string{"registrant_contact", "admin_contact", "technical_contact", "billing_contact"}
-		if edges, err := e.Session.Cache().OutgoingEdges(dr, e.Session.Cache().StartTime(), rtypes...); err == nil && len(edges) > 0 {
+		if edges, err := e.Session.DB().OutgoingEdges(context.Background(), dr, e.Session.StartTime(), rtypes...); err == nil && len(edges) > 0 {
 			return
 		}
 	}

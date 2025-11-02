@@ -5,6 +5,7 @@
 package org
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math"
@@ -51,6 +52,9 @@ func CreateOrgAsset(session et.Session, obj *dbt.Entity, rel oam.Relation, o *oa
 		orgent = dedupChecks(session, obj, o)
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
 	if orgent == nil {
 		name := strings.ToLower(o.Name)
 		id := &general.Identifier{
@@ -59,31 +63,31 @@ func CreateOrgAsset(session et.Session, obj *dbt.Entity, rel oam.Relation, o *oa
 			Type:     general.OrganizationName,
 		}
 
-		if ident, err := session.Cache().CreateAsset(id); err == nil && ident != nil {
-			_, _ = session.Cache().CreateEntityProperty(ident, &general.SourceProperty{
+		if ident, err := session.DB().CreateAsset(ctx, id); err == nil && ident != nil {
+			_, _ = session.DB().CreateEntityProperty(ctx, ident, &general.SourceProperty{
 				Source:     src.Name,
 				Confidence: src.Confidence,
 			})
 
 			o.ID = determineOrgID(name)
-			orgent, err = session.Cache().CreateAsset(o)
+			orgent, err = session.DB().CreateAsset(ctx, o)
 			if err != nil || orgent == nil {
 				return nil, errors.New("failed to create the OAM Organization asset")
 			}
 
-			_, _ = session.Cache().CreateEntityProperty(orgent, &general.SourceProperty{
+			_, _ = session.DB().CreateEntityProperty(ctx, orgent, &general.SourceProperty{
 				Source:     src.Name,
 				Confidence: src.Confidence,
 			})
 
-			if err := createRelation(session, orgent, &general.SimpleRelation{Name: "id"}, ident, src); err != nil {
+			if err := createRelation(ctx, session, orgent, &general.SimpleRelation{Name: "id"}, ident, src); err != nil {
 				return nil, err
 			}
 		}
 	}
 
 	if obj != nil && rel != nil && orgent != nil && obj.ID != orgent.ID {
-		if err := createRelation(session, obj, rel, orgent, src); err != nil {
+		if err := createRelation(ctx, session, obj, rel, orgent, src); err != nil {
 			return nil, err
 		}
 	}
@@ -149,8 +153,8 @@ func determineOrgID(name string) string {
 	return uuid.New().String()
 }
 
-func createRelation(session et.Session, obj *dbt.Entity, rel oam.Relation, subject *dbt.Entity, src *et.Source) error {
-	edge, err := session.Cache().CreateEdge(&dbt.Edge{
+func createRelation(ctx context.Context, session et.Session, obj *dbt.Entity, rel oam.Relation, subject *dbt.Entity, src *et.Source) error {
+	edge, err := session.DB().CreateEdge(ctx, &dbt.Edge{
 		Relation:   rel,
 		FromEntity: obj,
 		ToEntity:   subject,
@@ -161,7 +165,7 @@ func createRelation(session et.Session, obj *dbt.Entity, rel oam.Relation, subje
 		return errors.New("failed to create the edge")
 	}
 
-	_, err = session.Cache().CreateEdgeProperty(edge, &general.SourceProperty{
+	_, err = session.DB().CreateEdgeProperty(ctx, edge, &general.SourceProperty{
 		Source:     src.Name,
 		Confidence: src.Confidence,
 	})

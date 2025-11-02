@@ -5,6 +5,7 @@
 package gleif
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"math"
@@ -49,13 +50,15 @@ func (fc *fuzzyCompletions) check(e *et.Event) error {
 }
 
 func (fc *fuzzyCompletions) lookup(e *et.Event, orgent *dbt.Entity, since time.Time) *dbt.Entity {
-	if edges, err := e.Session.Cache().OutgoingEdges(orgent, since, "id"); err == nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if edges, err := e.Session.DB().OutgoingEdges(ctx, orgent, since, "id"); err == nil {
 		for _, edge := range edges {
-			if tags, err := e.Session.Cache().GetEdgeTags(edge,
-				since, fc.plugin.source.Name); err != nil || len(tags) == 0 {
+			if tags, err := e.Session.DB().FindEdgeTags(ctx, edge, since, fc.plugin.source.Name); err != nil || len(tags) == 0 {
 				continue
 			}
-			if a, err := e.Session.Cache().FindEntityById(edge.ToEntity.ID); err == nil && a != nil {
+			if a, err := e.Session.DB().FindEntityById(ctx, edge.ToEntity.ID); err == nil && a != nil {
 				if id, ok := a.Asset.(*general.Identifier); ok && id != nil && id.Type == general.LEICode {
 					return a
 				}

@@ -96,9 +96,6 @@ func (r *manager) CancelSession(id uuid.UUID) {
 			s.Log().Error(fmt.Sprintf("failed to close the queue for session %s: %v", id, err))
 		}
 	}
-	if c := r.sessions[id].Cache(); c != nil {
-		_ = c.Close()
-	}
 	if s, ok := r.sessions[id].(*Session); ok {
 		s.ranger = nil
 	}

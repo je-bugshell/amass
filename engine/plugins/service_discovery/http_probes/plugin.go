@@ -124,7 +124,7 @@ func (hp *httpProbing) store(e *et.Event, resp *http.Response, entity *dbt.Entit
 				break
 			}
 
-			a, err := e.Session.Cache().CreateAsset(c)
+			a, err := e.Session.DB().CreateAsset(context.Background(), c)
 			if err != nil {
 				break
 			}
