@@ -68,13 +68,16 @@ func (cs *companySearch) check(e *et.Event) error {
 }
 
 func (cs *companySearch) lookup(e *et.Event, orgent *dbt.Entity, since time.Time) *dbt.Entity {
-	if edges, err := e.Session.Cache().OutgoingEdges(orgent, since, "id"); err == nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if edges, err := e.Session.DB().OutgoingEdges(ctx, orgent, since, "id"); err == nil {
 		for _, edge := range edges {
-			if tags, err := e.Session.Cache().GetEdgeTags(edge,
+			if tags, err := e.Session.DB().FindEdgeTags(ctx, edge,
 				since, cs.plugin.source.Name); err != nil || len(tags) == 0 {
 				continue
 			}
-			if a, err := e.Session.Cache().FindEntityById(edge.ToEntity.ID); err == nil && a != nil {
+			if a, err := e.Session.DB().FindEntityById(ctx, edge.ToEntity.ID); err == nil && a != nil {
 				if id, ok := a.Asset.(*general.Identifier); ok && id != nil && id.Type == AviatoCompanyID {
 					return a
 				}
@@ -161,14 +164,17 @@ func (cs *companySearch) store(e *et.Event, orgent *dbt.Entity, companyID string
 		Type:     AviatoCompanyID,
 	}
 
-	ident, err := e.Session.Cache().CreateAsset(oamid)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	ident, err := e.Session.DB().CreateAsset(ctx, oamid)
 	if err != nil || ident == nil {
 		msg := fmt.Sprintf("failed to create the identifier asset for %s: %s", companyID, err)
 		e.Session.Log().Error(msg, slog.Group("plugin", "name", cs.plugin.name, "handler", cs.name))
 		return nil
 	}
 
-	_, err = e.Session.Cache().CreateEntityProperty(ident, &general.SourceProperty{
+	_, err = e.Session.DB().CreateEntityProperty(ctx, ident, &general.SourceProperty{
 		Source:     cs.name,
 		Confidence: cs.plugin.source.Confidence,
 	})
@@ -178,11 +184,11 @@ func (cs *companySearch) store(e *et.Event, orgent *dbt.Entity, companyID string
 		return nil
 	}
 
-	if err := cs.plugin.createRelation(e.Session, orgent,
+	if err := cs.plugin.createRelation(ctx, e.Session, orgent,
 		general.SimpleRelation{Name: "id"}, ident, cs.plugin.source.Confidence); err != nil {
 		msg := fmt.Sprintf("failed to create the identifier relation for %s: %s", companyID, err)
 		e.Session.Log().Error(msg, slog.Group("plugin", "name", cs.plugin.name, "handler", cs.name))
-		_ = e.Session.Cache().DeleteEntity(ident.ID)
+		_ = e.Session.DB().DeleteEntity(ctx, ident.ID)
 		return nil
 	}
 	return ident

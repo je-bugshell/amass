@@ -121,6 +121,9 @@ func (u *urlexpand) lookup(e *et.Event, asset *dbt.Entity, m *config.Matches) []
 	rtypes := stringset.New()
 	defer rtypes.Close()
 
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
 	var findings []*support.Finding
 	sinces := make(map[string]time.Time)
 	for _, atype := range u.transforms {
@@ -146,9 +149,9 @@ func (u *urlexpand) lookup(e *et.Event, asset *dbt.Entity, m *config.Matches) []
 		}
 	}
 
-	if edges, err := e.Session.Cache().OutgoingEdges(asset, time.Time{}, rtypes.Slice()...); err == nil && len(edges) > 0 {
+	if edges, err := e.Session.DB().OutgoingEdges(ctx, asset, time.Time{}, rtypes.Slice()...); err == nil && len(edges) > 0 {
 		for _, edge := range edges {
-			a, err := e.Session.Cache().FindEntityById(edge.ToEntity.ID)
+			a, err := e.Session.DB().FindEntityById(ctx, edge.ToEntity.ID)
 			if err != nil {
 				continue
 			}

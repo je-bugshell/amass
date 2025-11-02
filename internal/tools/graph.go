@@ -25,7 +25,7 @@ func OpenGraphDatabase(cfg *config.Config) repository.Repository {
 
 			switch db.System {
 			case "local":
-				path := filepath.Join(config.OutputDirectory(cfg.Dir), "assetdb.db")
+				path := filepath.Join(config.OutputDirectory(cfg.Dir), "asset.db")
 				dbase = NewGraph(db.System, path, db.Options)
 			case "postgres":
 				connStr := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s", db.Host, db.Port, db.Username, db.Password, db.DBName)

@@ -5,6 +5,7 @@
 package plugins
 
 import (
+	"context"
 	"log/slog"
 
 	et "github.com/owasp-amass/amass/v5/engine/types"
@@ -66,7 +67,7 @@ func (v *verifiedEmail) check(e *et.Event) error {
 	}
 
 	if storeEmail {
-		_, _ = e.Session.Cache().CreateAsset(email)
+		_, _ = e.Session.DB().CreateAsset(context.Background(), email)
 	}
 	return nil
 }

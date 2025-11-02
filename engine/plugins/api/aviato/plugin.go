@@ -5,6 +5,7 @@
 package aviato
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -111,8 +112,8 @@ func (a *aviato) Stop() {
 	a.log.Info("Plugin stopped")
 }
 
-func (a *aviato) createRelation(session et.Session, obj *dbt.Entity, rel oam.Relation, subject *dbt.Entity, conf int) error {
-	edge, err := session.Cache().CreateEdge(&dbt.Edge{
+func (a *aviato) createRelation(ctx context.Context, session et.Session, obj *dbt.Entity, rel oam.Relation, subject *dbt.Entity, conf int) error {
+	edge, err := session.DB().CreateEdge(ctx, &dbt.Edge{
 		Relation:   rel,
 		FromEntity: obj,
 		ToEntity:   subject,
@@ -123,7 +124,7 @@ func (a *aviato) createRelation(session et.Session, obj *dbt.Entity, rel oam.Rel
 		return errors.New("failed to create the edge")
 	}
 
-	_, err = session.Cache().CreateEdgeProperty(edge, &general.SourceProperty{
+	_, err = session.DB().CreateEdgeProperty(ctx, edge, &general.SourceProperty{
 		Source:     a.source.Name,
 		Confidence: conf,
 	})

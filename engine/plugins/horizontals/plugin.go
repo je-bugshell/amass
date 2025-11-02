@@ -19,7 +19,6 @@ import (
 	oamcert "github.com/owasp-amass/open-asset-model/certificate"
 	oamcon "github.com/owasp-amass/open-asset-model/contact"
 	oamdns "github.com/owasp-amass/open-asset-model/dns"
-	"github.com/owasp-amass/open-asset-model/general"
 	oamgen "github.com/owasp-amass/open-asset-model/general"
 	oamnet "github.com/owasp-amass/open-asset-model/network"
 	oamorg "github.com/owasp-amass/open-asset-model/org"
@@ -161,12 +160,12 @@ func (h *horizPlugin) makeAssocRelationshipEntries(e *et.Event, assoc, assoc2 *d
 	defer cancel()
 
 	_, _ = e.Session.DB().CreateEdge(ctx, &dbt.Edge{
-		Relation:   &general.SimpleRelation{Name: "associated_with"},
+		Relation:   &oamgen.SimpleRelation{Name: "associated_with"},
 		FromEntity: assoc,
 		ToEntity:   assoc2,
 	})
 	_, _ = e.Session.DB().CreateEdge(ctx, &dbt.Edge{
-		Relation:   &general.SimpleRelation{Name: "associated_with"},
+		Relation:   &oamgen.SimpleRelation{Name: "associated_with"},
 		FromEntity: assoc2,
 		ToEntity:   assoc,
 	})
@@ -201,7 +200,7 @@ func (h *horizPlugin) process(e *et.Event, assets []*dbt.Entity) {
 			Session: e.Session,
 		})
 
-		_, _ = e.Session.DB().CreateEntityProperty(ctx, asset, &general.SourceProperty{
+		_, _ = e.Session.DB().CreateEntityProperty(ctx, asset, &oamgen.SourceProperty{
 			Source:     h.source.Name,
 			Confidence: h.source.Confidence,
 		})
@@ -327,7 +326,7 @@ func (h *horizPlugin) submitIPAddresses(e *et.Event, asset *oamnet.IPAddress, sr
 
 	addr, err := e.Session.DB().CreateAsset(ctx, asset)
 	if err == nil && addr != nil {
-		_, _ = e.Session.DB().CreateEntityProperty(ctx, addr, &general.SourceProperty{
+		_, _ = e.Session.DB().CreateEntityProperty(ctx, addr, &oamgen.SourceProperty{
 			Source:     src.Name,
 			Confidence: src.Confidence,
 		})
@@ -345,7 +344,7 @@ func (h *horizPlugin) submitFQDN(e *et.Event, dom string) {
 
 	fqdn, err := e.Session.DB().CreateAsset(ctx, &oamdns.FQDN{Name: dom})
 	if err == nil && fqdn != nil {
-		_, _ = e.Session.DB().CreateEntityProperty(ctx, fqdn, &general.SourceProperty{
+		_, _ = e.Session.DB().CreateEntityProperty(ctx, fqdn, &oamgen.SourceProperty{
 			Source:     h.source.Name,
 			Confidence: h.source.Confidence,
 		})

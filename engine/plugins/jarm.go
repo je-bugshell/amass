@@ -5,8 +5,10 @@
 package plugins
 
 import (
+	"context"
 	"errors"
 	"log/slog"
+	"time"
 
 	"github.com/owasp-amass/amass/v5/engine/plugins/support"
 	et "github.com/owasp-amass/amass/v5/engine/types"
@@ -84,9 +86,12 @@ func (j *jarmPlugin) check(e *et.Event) error {
 }
 
 func (j *jarmPlugin) hasCertificate(e *et.Event) bool {
-	if edges, err := e.Session.Cache().OutgoingEdges(e.Entity, e.Session.Cache().StartTime(), "certificate"); err == nil && len(edges) > 0 {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if edges, err := e.Session.DB().OutgoingEdges(ctx, e.Entity, e.Session.StartTime(), "certificate"); err == nil && len(edges) > 0 {
 		for _, edge := range edges {
-			if a, err := e.Session.Cache().FindEntityById(edge.ToEntity.ID); err == nil && a != nil {
+			if a, err := e.Session.DB().FindEntityById(ctx, edge.ToEntity.ID); err == nil && a != nil {
 				if a.Asset.AssetType() == oam.TLSCertificate {
 					return true
 				}
@@ -105,13 +110,16 @@ type fingerprint struct {
 func (j *jarmPlugin) query(e *et.Event) {
 	var targets []*fingerprint
 
-	if edges, err := e.Session.Cache().IncomingEdges(e.Entity, e.Session.Cache().StartTime(), "port"); err == nil && len(edges) > 0 {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if edges, err := e.Session.DB().IncomingEdges(ctx, e.Entity, e.Session.StartTime(), "port"); err == nil && len(edges) > 0 {
 		for _, edge := range edges {
 			portrel, ok := edge.Relation.(*general.PortRelation)
 			if !ok {
 				continue
 			}
-			if a, err := e.Session.Cache().FindEntityById(edge.FromEntity.ID); err == nil && a != nil {
+			if a, err := e.Session.DB().FindEntityById(ctx, edge.FromEntity.ID); err == nil && a != nil {
 				switch a.Asset.(type) {
 				case *oamdns.FQDN:
 					if portrel.Protocol == "https" {
@@ -151,8 +159,11 @@ func (j *jarmPlugin) query(e *et.Event) {
 }
 
 func (j *jarmPlugin) store(e *et.Event, fps []*fingerprint) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
 	for _, fp := range fps {
-		_, _ = e.Session.Cache().CreateEdgeProperty(fp.port, &general.SimpleProperty{
+		_, _ = e.Session.DB().CreateEdgeProperty(ctx, fp.port, &general.SimpleProperty{
 			PropertyName:  "JARM",
 			PropertyValue: fp.hash,
 		})

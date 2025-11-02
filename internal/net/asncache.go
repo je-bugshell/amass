@@ -192,11 +192,10 @@ func (c *ASNCache) AddrSearch(addr string) *ASNRequest {
 }
 
 func FillCache(cache *ASNCache, db repository.Repository) error {
-	start := time.Now().Add(-730 * time.Hour)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	assets, err := db.FindEntitiesByType(ctx, oam.AutonomousSystem, start)
+	assets, err := db.FindEntitiesByType(ctx, oam.AutonomousSystem, time.Time{})
 	if err != nil {
 		return err
 	}
@@ -208,7 +207,7 @@ func FillCache(cache *ASNCache, db repository.Repository) error {
 		}
 
 		var desc string
-		edges, err := db.OutgoingEdges(ctx, a, start, "registration")
+		edges, err := db.OutgoingEdges(ctx, a, time.Time{}, "registration")
 		if err != nil || len(edges) == 0 {
 			continue
 		}
@@ -225,7 +224,7 @@ func FillCache(cache *ASNCache, db repository.Repository) error {
 			continue
 		}
 
-		for _, prefix := range ReadASPrefixes(ctx, db, as.Number, start) {
+		for _, prefix := range ReadASPrefixes(ctx, db, as.Number, time.Time{}) {
 			first, cidr, err := net.ParseCIDR(prefix)
 			if err != nil {
 				continue

@@ -5,6 +5,7 @@
 package enrich
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"time"
@@ -92,6 +93,9 @@ func (cr *contactrec) lookup(e *et.Event, entity *dbt.Entity, m *config.Matches)
 	sinces := make(map[string]time.Time)
 	conrec := entity.Asset.(*contact.ContactRecord)
 
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
 	for _, atype := range cr.transforms {
 		if !m.IsMatch(atype) {
 			continue
@@ -125,9 +129,9 @@ func (cr *contactrec) lookup(e *et.Event, entity *dbt.Entity, m *config.Matches)
 	}
 
 	var findings []*support.Finding
-	if edges, err := e.Session.Cache().OutgoingEdges(entity, time.Time{}, rtypes...); err == nil && len(edges) > 0 {
+	if edges, err := e.Session.DB().OutgoingEdges(ctx, entity, time.Time{}, rtypes...); err == nil && len(edges) > 0 {
 		for _, edge := range edges {
-			a, err := e.Session.Cache().FindEntityById(edge.ToEntity.ID)
+			a, err := e.Session.DB().FindEntityById(ctx, edge.ToEntity.ID)
 			if err != nil {
 				continue
 			}

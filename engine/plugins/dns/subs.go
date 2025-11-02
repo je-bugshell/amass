@@ -100,13 +100,12 @@ func (d *dnsSubs) registered(e *et.Event, name string) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	fqdns, err := e.Session.DB().FindOneEntityByContent(ctx, string(oam.FQDN), time.Time{}, dbt.ContentFilters{
+	fqdn, err := e.Session.DB().FindOneEntityByContent(ctx, string(oam.FQDN), time.Time{}, dbt.ContentFilters{
 		"name": name,
 	})
-	if err != nil || len(fqdns) != 1 {
+	if err != nil || fqdn == nil {
 		return ""
 	}
-	fqdn := fqdns[0]
 
 	var rels []*dbt.Edge
 	// allow name servers and mail servers to be investigated like in-scope assets

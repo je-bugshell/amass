@@ -5,6 +5,7 @@
 package plugins
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -121,17 +122,20 @@ func (d *ipNetblock) store(e *et.Event, entry *sessions.CIDRangerEntry) (*dbt.En
 		netblock.Type = "IPv6"
 	}
 
-	nb, err := e.Session.Cache().CreateAsset(netblock)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	nb, err := e.Session.DB().CreateAsset(ctx, netblock)
 	if err != nil || nb == nil {
 		return nil, nil
 	}
 
-	_, _ = e.Session.Cache().CreateEntityProperty(nb, &general.SourceProperty{
+	_, _ = e.Session.DB().CreateEntityProperty(ctx, nb, &general.SourceProperty{
 		Source:     entry.Src.Name,
 		Confidence: entry.Src.Confidence,
 	})
 
-	edge, err := e.Session.Cache().CreateEdge(&dbt.Edge{
+	edge, err := e.Session.DB().CreateEdge(ctx, &dbt.Edge{
 		Relation:   &general.SimpleRelation{Name: "contains"},
 		FromEntity: nb,
 		ToEntity:   e.Entity,
@@ -140,22 +144,22 @@ func (d *ipNetblock) store(e *et.Event, entry *sessions.CIDRangerEntry) (*dbt.En
 		return nil, nil
 	}
 
-	_, _ = e.Session.Cache().CreateEdgeProperty(edge, &general.SourceProperty{
+	_, _ = e.Session.DB().CreateEdgeProperty(ctx, edge, &general.SourceProperty{
 		Source:     entry.Src.Name,
 		Confidence: entry.Src.Confidence,
 	})
 
-	as, err := e.Session.Cache().CreateAsset(&oamnet.AutonomousSystem{Number: entry.ASN})
+	as, err := e.Session.DB().CreateAsset(ctx, &oamnet.AutonomousSystem{Number: entry.ASN})
 	if err != nil || as == nil {
 		return nil, nil
 	}
 
-	_, _ = e.Session.Cache().CreateEntityProperty(as, &general.SourceProperty{
+	_, _ = e.Session.DB().CreateEntityProperty(ctx, as, &general.SourceProperty{
 		Source:     entry.Src.Name,
 		Confidence: entry.Src.Confidence,
 	})
 
-	edge, err = e.Session.Cache().CreateEdge(&dbt.Edge{
+	edge, err = e.Session.DB().CreateEdge(ctx, &dbt.Edge{
 		Relation:   &general.SimpleRelation{Name: "announces"},
 		FromEntity: as,
 		ToEntity:   nb,
@@ -164,7 +168,7 @@ func (d *ipNetblock) store(e *et.Event, entry *sessions.CIDRangerEntry) (*dbt.En
 		return nil, nil
 	}
 
-	_, _ = e.Session.Cache().CreateEdgeProperty(edge, &general.SourceProperty{
+	_, _ = e.Session.DB().CreateEdgeProperty(ctx, edge, &general.SourceProperty{
 		Source:     entry.Src.Name,
 		Confidence: entry.Src.Confidence,
 	})
@@ -197,27 +201,30 @@ func (d *ipNetblock) process(e *et.Event, ip, nb, as *dbt.Entity) {
 }
 
 func (d *ipNetblock) reservedAS(e *et.Event, netblock *oamnet.Netblock) {
-	nb, err := e.Session.Cache().CreateAsset(netblock)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	nb, err := e.Session.DB().CreateAsset(ctx, netblock)
 	if err != nil || nb == nil {
 		return
 	}
 
-	_, _ = e.Session.Cache().CreateEntityProperty(nb, &general.SourceProperty{
+	_, _ = e.Session.DB().CreateEntityProperty(ctx, nb, &general.SourceProperty{
 		Source:     d.source.Name,
 		Confidence: d.source.Confidence,
 	})
 
-	asn, err := e.Session.Cache().CreateAsset(&oamnet.AutonomousSystem{Number: 0})
+	asn, err := e.Session.DB().CreateAsset(ctx, &oamnet.AutonomousSystem{Number: 0})
 	if err != nil || asn == nil {
 		return
 	}
 
-	_, _ = e.Session.Cache().CreateEntityProperty(nb, &general.SourceProperty{
+	_, _ = e.Session.DB().CreateEntityProperty(ctx, nb, &general.SourceProperty{
 		Source:     d.source.Name,
 		Confidence: d.source.Confidence,
 	})
 
-	autnum, err := e.Session.Cache().CreateAsset(&oamreg.AutnumRecord{
+	autnum, err := e.Session.DB().CreateAsset(ctx, &oamreg.AutnumRecord{
 		Number: 0,
 		Handle: "AS0",
 		Name:   "Reserved Network Address Blocks",
@@ -226,7 +233,7 @@ func (d *ipNetblock) reservedAS(e *et.Event, netblock *oamnet.Netblock) {
 		return
 	}
 
-	edge, err := e.Session.Cache().CreateEdge(&dbt.Edge{
+	edge, err := e.Session.DB().CreateEdge(ctx, &dbt.Edge{
 		Relation:   &general.SimpleRelation{Name: "registration"},
 		FromEntity: asn,
 		ToEntity:   autnum,
@@ -235,12 +242,12 @@ func (d *ipNetblock) reservedAS(e *et.Event, netblock *oamnet.Netblock) {
 		return
 	}
 
-	_, _ = e.Session.Cache().CreateEdgeProperty(edge, &general.SourceProperty{
+	_, _ = e.Session.DB().CreateEdgeProperty(ctx, edge, &general.SourceProperty{
 		Source:     d.source.Name,
 		Confidence: d.source.Confidence,
 	})
 
-	edge, err = e.Session.Cache().CreateEdge(&dbt.Edge{
+	edge, err = e.Session.DB().CreateEdge(ctx, &dbt.Edge{
 		Relation:   &general.SimpleRelation{Name: "announces"},
 		FromEntity: asn,
 		ToEntity:   nb,
@@ -249,7 +256,7 @@ func (d *ipNetblock) reservedAS(e *et.Event, netblock *oamnet.Netblock) {
 		return
 	}
 
-	_, _ = e.Session.Cache().CreateEdgeProperty(edge, &general.SourceProperty{
+	_, _ = e.Session.DB().CreateEdgeProperty(ctx, edge, &general.SourceProperty{
 		Source:     d.source.Name,
 		Confidence: d.source.Confidence,
 	})
