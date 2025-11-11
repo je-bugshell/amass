@@ -3,7 +3,7 @@ module github.com/owasp-amass/amass/v5
 go 1.25
 
 require (
-	github.com/99designs/gqlgen v0.17.82
+	github.com/99designs/gqlgen v0.17.83
 	github.com/PuerkitoBio/goquery v1.10.3
 	github.com/PuerkitoBio/purell v1.2.1
 	github.com/adrg/strutil v0.3.1
@@ -25,7 +25,7 @@ require (
 	github.com/miekg/dns v1.1.68
 	github.com/nyaruka/phonenumbers v1.6.6
 	github.com/openrdap/rdap v0.9.1
-	github.com/owasp-amass/asset-db v0.23.2-0.20251109183319-223db3e00f36
+	github.com/owasp-amass/asset-db v0.23.2-0.20251111012829-f49a882bb55b
 	github.com/owasp-amass/open-asset-model v0.15.0
 	github.com/owasp-amass/resolve v0.9.7-0.20250325214539-07077e8c54af
 	github.com/samber/slog-common v0.19.0
@@ -96,8 +96,8 @@ require (
 	golang.org/x/crypto v0.43.0 // indirect
 	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546 // indirect
 	golang.org/x/mod v0.29.0 // indirect
-	golang.org/x/sync v0.17.0 // indirect
-	golang.org/x/sys v0.37.0 // indirect
+	golang.org/x/sync v0.18.0 // indirect
+	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/text v0.30.0 // indirect
 	golang.org/x/tools v0.38.0 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
