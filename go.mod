@@ -4,7 +4,7 @@ go 1.25
 
 require (
 	github.com/99designs/gqlgen v0.17.83
-	github.com/PuerkitoBio/goquery v1.10.3
+	github.com/PuerkitoBio/goquery v1.11.0
 	github.com/PuerkitoBio/purell v1.2.1
 	github.com/adrg/strutil v0.3.1
 	github.com/caffix/fullname_parser v0.0.0-20240817200809-1b9b04da88d0
@@ -31,7 +31,7 @@ require (
 	github.com/samber/slog-common v0.19.0
 	github.com/samber/slog-syslog/v2 v2.5.2
 	github.com/stretchr/testify v1.11.1
-	github.com/tylertreat/BoomFilters v0.0.0-20251001182300-5b3723cc64ae
+	github.com/tylertreat/BoomFilters v0.0.0-20251117164519-53813c36cc1b
 	github.com/vektah/gqlparser/v2 v2.5.31
 	github.com/yl2chen/cidranger v1.0.2
 	golang.org/x/net v0.47.0
@@ -94,15 +94,15 @@ require (
 	github.com/xhit/go-str2duration/v2 v2.1.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	golang.org/x/crypto v0.44.0 // indirect
-	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546 // indirect
+	golang.org/x/exp v0.0.0-20251113190631-e25ba8c21ef6 // indirect
 	golang.org/x/mod v0.30.0 // indirect
 	golang.org/x/sync v0.18.0 // indirect
 	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
-	golang.org/x/tools v0.38.0 // indirect
+	golang.org/x/tools v0.39.0 // indirect
 	google.golang.org/protobuf v1.36.10 // indirect
-	modernc.org/libc v1.66.10 // indirect
+	modernc.org/libc v1.67.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
-	modernc.org/sqlite v1.40.0 // indirect
+	modernc.org/sqlite v1.40.1 // indirect
 )
