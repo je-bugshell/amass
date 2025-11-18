@@ -9,7 +9,6 @@ package libpostal
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"os"
 	"time"
 
@@ -26,19 +25,43 @@ type parseRequest struct {
 	Country  string `json:"country"`
 }
 
-var postalHost, postalPort string
+var (
+	postalHost           string
+	postalPort           string
+	parserDefaultOptions = getDefaultParserOptions()
+)
 
 func init() {
 	postalHost = os.Getenv("POSTAL_SERVER_HOST")
+	if postalHost == "" {
+		postalHost = "0.0.0.0"
+	}
+
 	postalPort = os.Getenv("POSTAL_SERVER_PORT")
+	if postalPort == "" {
+		postalPort = "4001"
+	}
+}
+
+func getDefaultParserOptions() ParserOptions {
+	return ParserOptions{
+		Language: "",
+		Country:  "",
+	}
 }
 
 func ParseAddress(address string) ([]ParsedComponent, error) {
-	if postalHost == "" || postalPort == "" {
-		return nil, errors.New(ErrPostalLibNotAvailable)
+	return ParseAddressOptions(address, parserDefaultOptions)
+}
+
+func ParseAddressOptions(address string, options ParserOptions) ([]ParsedComponent, error) {
+	req := parseRequest{
+		Address:  address,
+		Language: options.Language,
+		Country:  options.Country,
 	}
 
-	reqJSON, err := json.Marshal(parseRequest{Address: address})
+	reqJSON, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
 	}

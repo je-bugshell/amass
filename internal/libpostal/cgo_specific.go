@@ -21,11 +21,6 @@ import (
 	"unsafe"
 )
 
-type ParserOptions struct {
-	Language string
-	Country  string
-}
-
 var (
 	postalLock           sync.Mutex
 	postalLibAvailable   bool
