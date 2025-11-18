@@ -5,21 +5,55 @@
 package support
 
 import (
-	"github.com/owasp-amass/amass/v5/internal/libpostal"
+	"context"
+	"encoding/json"
+	"os"
+	"time"
+
+	"github.com/owasp-amass/amass/v5/internal/net/http"
 	"github.com/owasp-amass/open-asset-model/contact"
 )
+
+type parsedComponent struct {
+	Label string `json:"label"`
+	Value string `json:"value"`
+}
+
+type parsed struct {
+	Parts []parsedComponent `json:"parts"`
+}
+
+type parseRequest struct {
+	Address  string `json:"addr"`
+	Language string `json:"lang"`
+	Country  string `json:"country"`
+}
+
+var postalHost, postalPort string
+
+func init() {
+	postalHost = os.Getenv("POSTAL_SERVER_HOST")
+	if postalHost == "" {
+		postalHost = "0.0.0.0"
+	}
+
+	postalPort = os.Getenv("POSTAL_SERVER_PORT")
+	if postalPort == "" {
+		postalPort = "4001"
+	}
+}
 
 func StreetAddressToLocation(address string) *contact.Location {
 	if address == "" {
 		return nil
 	}
 
-	loc := &contact.Location{Address: address}
-	parts, err := libpostal.ParseAddress(loc.Address)
+	parts, err := postalServerParseAddress(address)
 	if err != nil {
 		return nil
 	}
 
+	loc := &contact.Location{Address: address}
 	for _, part := range parts {
 		switch part.Label {
 		case "house":
@@ -49,4 +83,29 @@ func StreetAddressToLocation(address string) *contact.Location {
 		}
 	}
 	return loc
+}
+
+func postalServerParseAddress(address string) ([]parsedComponent, error) {
+	reqJSON, err := json.Marshal(parseRequest{Address: address})
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	resp, err := http.RequestWebPage(ctx, &http.Request{
+		Method: "POST",
+		URL:    "http://" + postalHost + ":" + postalPort + "/parse",
+		Body:   string(reqJSON),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var p parsed
+	if err := json.Unmarshal([]byte("{\"parts\":"+resp.Body+"}"), &p); err != nil {
+		return nil, err
+	}
+	return p.Parts, nil
 }

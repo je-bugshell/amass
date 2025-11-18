@@ -40,22 +40,23 @@ func main() {
 
 	listenSpec := fmt.Sprintf("%s:%s", host, port)
 	s := &http.Server{Addr: listenSpec, Handler: router}
-	go func() { s.ListenAndServe() }()
+	go func() { _ = s.ListenAndServe() }()
 
-	stop := make(chan os.Signal)
-	// reacting to Interrupt or KILL signals to gracefully terminate the process
-	signal.Notify(stop, os.Interrupt, os.Kill)
+	stop := make(chan os.Signal, 1)
+	// reacting to Interrupt signals to gracefully terminate the process
+	signal.Notify(stop, os.Interrupt)
 
 	<-stop
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	s.Shutdown(ctx)
+	_ = s.Shutdown(ctx)
+	os.Exit(0)
 }
 
 func HealthHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("OK"))
+	_, _ = w.Write([]byte("OK"))
 }
 
 func ParserHandler(w http.ResponseWriter, r *http.Request) {
@@ -89,6 +90,10 @@ func ParserHandler(w http.ResponseWriter, r *http.Request) {
 	} else {
 		parsed, err = libpostal.ParseAddress(req.Address)
 	}
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Parse failed: %v", err), http.StatusBadRequest)
+		return
+	}
 
 	parsedJSON, err := json.Marshal(parsed)
 	if err != nil {
@@ -97,5 +102,5 @@ func ParserHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write(parsedJSON)
+	_, _ = w.Write(parsedJSON)
 }
