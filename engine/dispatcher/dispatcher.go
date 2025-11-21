@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/caffix/queue"
 	et "github.com/owasp-amass/amass/v5/engine/types"
@@ -52,6 +53,9 @@ func (d *dynamicDispatcher) Shutdown() {
 }
 
 func (d *dynamicDispatcher) runEvents() {
+	scale := time.NewTicker(5 * time.Second)
+	defer scale.Stop()
+
 	for {
 		select {
 		case <-d.done:
@@ -60,6 +64,10 @@ func (d *dynamicDispatcher) runEvents() {
 		}
 
 		select {
+		case <-scale.C:
+			for _, pool := range d.pools {
+				pool.maybeScale()
+			}
 		case e := <-d.cchan:
 			d.cqueue.Append(e)
 		case <-d.cqueue.Signal():

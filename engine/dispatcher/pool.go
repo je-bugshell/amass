@@ -56,13 +56,6 @@ func (pi *pipelineInstance) onDequeue(e *et.Event) {
 		defer pi.parent.mu.Unlock()
 
 		delete(pi.parent.instances, pi.id)
-		// drop any shardAssignments pointing here; they will be reassigned on next event
-		for key, id := range pi.parent.shardAssignments {
-			if id == pi.id {
-				delete(pi.parent.shardAssignments, key)
-			}
-		}
-
 		pi.parent.log.Info("removed idle pipeline instance",
 			"atype", pi.parent.eventTy,
 			"id", pi.id,
@@ -79,25 +72,19 @@ func (pi *pipelineInstance) queueLen() int64 {
 // ------------------------------------------------------------------------------------------
 
 type pipelinePool struct {
-	log     *slog.Logger
-	dis     *dynamicDispatcher
-	reg     et.Registry
-	eventTy oam.AssetType
-
+	mu           sync.RWMutex
+	log          *slog.Logger
+	dis          *dynamicDispatcher
+	reg          et.Registry
+	eventTy      oam.AssetType
 	minInstances int
 	maxInstances int
-
-	mu sync.RWMutex
-
-	instances        map[string]*pipelineInstance // instanceID -> instance
-	ring             *hashRing                    // for initial assignment
-	shardAssignments map[string]string            // shardKey -> instanceID
-
+	instances    map[string]*pipelineInstance // instanceID -> instance
+	ring         *hashRing                    // shardKey -> instanceID
 	// session fan-out and load tracking
 	sessionFanout map[string]int   // sessionID -> fanout factor (1 = no fanout)
 	sessionQueued map[string]int64 // sessionID -> queued count across all instances
-
-	lastScale time.Time
+	lastScale     time.Time
 }
 
 func newPipelinePool(dis *dynamicDispatcher, atype oam.AssetType, min, max int) *pipelinePool {
@@ -108,18 +95,17 @@ func newPipelinePool(dis *dynamicDispatcher, atype oam.AssetType, min, max int) 
 		max = min
 	}
 	return &pipelinePool{
-		log:              dis.log,
-		dis:              dis,
-		reg:              dis.reg,
-		eventTy:          atype,
-		minInstances:     min,
-		maxInstances:     max,
-		instances:        make(map[string]*pipelineInstance),
-		ring:             newHashRing(50),
-		shardAssignments: make(map[string]string),
-		sessionFanout:    make(map[string]int),
-		sessionQueued:    make(map[string]int64),
-		lastScale:        time.Now(),
+		log:           dis.log,
+		dis:           dis,
+		reg:           dis.reg,
+		eventTy:       atype,
+		minInstances:  min,
+		maxInstances:  max,
+		instances:     make(map[string]*pipelineInstance),
+		ring:          newHashRing(50),
+		sessionFanout: make(map[string]int),
+		sessionQueued: make(map[string]int64),
+		lastScale:     time.Now(),
 	}
 }
 
@@ -205,15 +191,6 @@ func (p *pipelinePool) pickInstance(shardKey string) *pipelineInstance {
 		return best
 	}
 
-	// 1) Stable assignment if it already exists
-	if id, ok := p.shardAssignments[shardKey]; ok {
-		if inst, ok2 := p.instances[id]; ok2 && !inst.draining.Load() {
-			return inst
-		}
-		// instance went away or is draining; we'll reassign
-	}
-
-	// 2) First-time or remap assignment via ring
 	id, ok := p.ring.Lookup(shardKey)
 	if !ok {
 		return nil
@@ -223,8 +200,6 @@ func (p *pipelinePool) pickInstance(shardKey string) *pipelineInstance {
 	if !ok {
 		return nil
 	}
-
-	p.shardAssignments[shardKey] = id
 	return inst
 }
 
@@ -275,8 +250,7 @@ func (p *pipelinePool) maybeAdjustFanout(e *et.Event) {
 	}
 
 	const (
-		sessionGrowThreshold = int64(1000)
-		maxFanout            = 8 // max buckets per session
+		sessionGrowThreshold = int64(500)
 	)
 
 	p.mu.Lock()
@@ -285,21 +259,30 @@ func (p *pipelinePool) maybeAdjustFanout(e *et.Event) {
 	queued := p.sessionQueued[sid]
 	if queued <= sessionGrowThreshold {
 		p.sessionFanout[sid] = 1
-		p.log.Info("session within normal load",
-			"atype", p.eventTy,
-			"session", sid,
-			"queued", queued,
-		)
 		return
 	}
+
+	var scount int
+	for _, sess := range p.sessionQueued {
+		if sess > 0 {
+			scount++
+		}
+	}
+	if scount == 0 {
+		return
+	}
+
+	n := len(p.instances)
+	if n < scount {
+		// not enough instances to bother with fan-out
+		p.sessionFanout[sid] = 1
+		return
+	}
+	maxFanout := n / scount
 
 	fanout := p.sessionFanout[sid]
 	if fanout == 0 {
 		fanout = 1
-	}
-
-	if fanout >= maxFanout {
-		return
 	}
 
 	newFanout := fanout * 2
@@ -308,7 +291,7 @@ func (p *pipelinePool) maybeAdjustFanout(e *et.Event) {
 	}
 	p.sessionFanout[sid] = newFanout
 
-	p.log.Info("increasing session fan-out",
+	p.log.Info("adjusting session fan-out",
 		"atype", p.eventTy,
 		"session", sid,
 		"from", fanout,
@@ -383,13 +366,6 @@ func (p *pipelinePool) maybeScale() {
 		best.draining.Store(true)
 		if best.queueLen() == 0 {
 			delete(p.instances, best.id)
-			// drop any shardAssignments pointing here; they will be reassigned on next event
-			for key, id := range p.shardAssignments {
-				if id == best.id {
-					delete(p.shardAssignments, key)
-				}
-			}
-
 			p.log.Info("removed idle pipeline instance",
 				"atype", p.eventTy,
 				"id", best.id,

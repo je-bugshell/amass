@@ -31,7 +31,7 @@ func (r *registry) BuildAssetPipeline(atype string) (*et.AssetPipeline, error) {
 			h := handlers[0]
 
 			if max := h.MaxInstances; max > 0 {
-				stages = append(stages, pipeline.FixedPool(id, handlerTask(h), max))
+				stages = append(stages, pipeline.DynamicPool(id, handlerTask(h), max))
 				if max > bufsize {
 					bufsize = max
 				}
