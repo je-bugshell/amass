@@ -56,8 +56,6 @@ func (pi *pipelineInstance) onDequeue(e *et.Event) {
 		defer pi.parent.mu.Unlock()
 
 		delete(pi.parent.instances, pi.id)
-		pi.parent.ring.Remove(pi.id)
-
 		// drop any shardAssignments pointing here; they will be reassigned on next event
 		for key, id := range pi.parent.shardAssignments {
 			if id == pi.id {
@@ -129,14 +127,21 @@ func newPipelinePool(dis *dynamicDispatcher, atype oam.AssetType, min, max int) 
 func (p *pipelinePool) Dispatch(e *et.Event) error {
 	p.ensureMinInstances()
 
-	shardKey := p.workShardKey(e)
-	inst := p.pickInstance(shardKey)
-	if inst == nil {
-		return fmt.Errorf("no pipeline instance available for %v", p.eventTy)
-	}
+	// attempt the process again if selection fails
+	for i := range 2 {
+		shardKey := p.workShardKey(e)
+		inst := p.pickInstance(shardKey)
+		if inst == nil {
+			return fmt.Errorf("no pipeline instance available for %v", p.eventTy)
+		}
 
-	if err := inst.enqueue(e); err != nil {
-		return err
+		if err := inst.enqueue(e); err != nil {
+			if i == 0 {
+				continue
+			}
+			return err
+		}
+		break
 	}
 
 	p.maybeScale()
@@ -279,6 +284,12 @@ func (p *pipelinePool) maybeAdjustFanout(e *et.Event) {
 
 	queued := p.sessionQueued[sid]
 	if queued <= sessionGrowThreshold {
+		p.sessionFanout[sid] = 1
+		p.log.Info("session within normal load",
+			"atype", p.eventTy,
+			"session", sid,
+			"queued", queued,
+		)
 		return
 	}
 
@@ -297,7 +308,7 @@ func (p *pipelinePool) maybeAdjustFanout(e *et.Event) {
 	}
 	p.sessionFanout[sid] = newFanout
 
-	p.log.Info("increasing session fanout",
+	p.log.Info("increasing session fan-out",
 		"atype", p.eventTy,
 		"session", sid,
 		"from", fanout,
@@ -310,8 +321,8 @@ func (p *pipelinePool) maybeAdjustFanout(e *et.Event) {
 func (p *pipelinePool) maybeScale() {
 	const (
 		scaleInterval   = 5 * time.Second
-		growThreshold   = 1000 // total queued across instances
-		shrinkThreshold = 10   // avg queued across instances
+		growThreshold   = 100 // avg queued across instances
+		shrinkThreshold = 10  // avg queued across instances
 	)
 
 	now := time.Now()
@@ -335,7 +346,7 @@ func (p *pipelinePool) maybeScale() {
 	avg := total / int64(n)
 
 	// Scale up
-	if total > growThreshold && n < p.maxInstances {
+	if avg > growThreshold && n < p.maxInstances {
 		p.log.Info("scaling up pipeline pool",
 			"atype", p.eventTy,
 			"from", n,
@@ -349,6 +360,7 @@ func (p *pipelinePool) maybeScale() {
 
 	// Scale down
 	if avg < shrinkThreshold && n > p.minInstances {
+		var count int
 		// pick emptiest instance to drain
 		var best *pipelineInstance
 
@@ -356,20 +368,21 @@ func (p *pipelinePool) maybeScale() {
 			if inst.draining.Load() {
 				continue
 			}
+
+			count++
 			if best == nil || inst.queueLen() < best.queueLen() {
 				best = inst
 			}
 		}
-		if best == nil {
+		if best == nil || count <= p.minInstances {
 			return
 		}
 
-		best.draining.Store(true)
 		best.ap.Queue.Drain()
+		p.ring.Remove(best.id)
+		best.draining.Store(true)
 		if best.queueLen() == 0 {
 			delete(p.instances, best.id)
-			p.ring.Remove(best.id)
-
 			// drop any shardAssignments pointing here; they will be reassigned on next event
 			for key, id := range p.shardAssignments {
 				if id == best.id {

@@ -110,19 +110,22 @@ func (d *dynamicDispatcher) DispatchEvent(e *et.Event) error {
 		return err
 	}
 
-	// increment the number of events processed in the session
+	atype := e.Entity.Asset.AssetType()
+	pool := d.getOrCreatePool(atype)
+	if pool == nil {
+		return fmt.Errorf("no pipeline pool available for asset type %s", string(atype))
+	}
+
+	if err := pool.Dispatch(e); err != nil {
+		return err
+	}
+	// increment the number of events in the session
 	if stats := e.Session.Stats(); stats != nil {
 		stats.Lock()
 		stats.WorkItemsTotal++
 		stats.Unlock()
 	}
-
-	atype := e.Entity.Asset.AssetType()
-	if pool := d.getOrCreatePool(atype); pool != nil {
-		return pool.Dispatch(e)
-	}
-
-	return fmt.Errorf("no pipeline pool available for asset type %s", string(atype))
+	return nil
 }
 
 func (d *dynamicDispatcher) getOrCreatePool(atype oam.AssetType) *pipelinePool {
@@ -139,10 +142,19 @@ func (d *dynamicDispatcher) getOrCreatePool(atype oam.AssetType) *pipelinePool {
 		return pool
 	}
 
-	// TODO: make these configurable per AssetType
-	minInstances := 2
-	maxInstances := 16
-	pool = newPipelinePool(d, atype, minInstances, maxInstances)
+	min, max := assetTypeToPoolMinMax(atype)
+	pool = newPipelinePool(d, atype, min, max)
 	d.pools[atype] = pool
 	return pool
+}
+
+func assetTypeToPoolMinMax(atype oam.AssetType) (int, int) {
+	switch atype {
+	case oam.FQDN:
+		return 4, 128
+	case oam.IPAddress:
+		return 4, 128
+	default:
+		return 1, 32
+	}
 }
