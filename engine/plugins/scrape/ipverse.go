@@ -55,7 +55,7 @@ func (v *ipverse) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       v,
 		Name:         v.name + "-Handler",
-		Priority:     30,
+		Position:     30,
 		MaxInstances: support.MidHandlerInstances,
 		Transforms:   []string{string(oam.Netblock)},
 		EventType:    oam.AutonomousSystem,

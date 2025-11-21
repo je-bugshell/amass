@@ -52,7 +52,7 @@ func (c *chaos) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       c,
 		Name:         c.name + "-Handler",
-		Priority:     21,
+		Position:     21,
 		MaxInstances: support.MidHandlerInstances,
 		Transforms:   []string{string(oam.FQDN)},
 		EventType:    oam.FQDN,

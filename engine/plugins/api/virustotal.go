@@ -54,7 +54,7 @@ func (vt *virusTotal) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       vt,
 		Name:         name,
-		Priority:     31,
+		Position:     31,
 		MaxInstances: support.MidHandlerInstances,
 		Transforms:   []string{string(oam.FQDN)},
 		EventType:    oam.FQDN,

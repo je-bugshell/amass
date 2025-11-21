@@ -53,7 +53,7 @@ func (be *binaryEdge) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       be,
 		Name:         be.name + "-Handler",
-		Priority:     20,
+		Position:     20,
 		MaxInstances: support.MidHandlerInstances,
 		Transforms:   []string{string(oam.FQDN)},
 		EventType:    oam.FQDN,

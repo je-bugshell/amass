@@ -55,7 +55,7 @@ func (w *wayback) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       w,
 		Name:         w.name + "-Handler",
-		Priority:     40,
+		Position:     40,
 		MaxInstances: 1,
 		Transforms:   []string{string(oam.FQDN)},
 		EventType:    oam.FQDN,

@@ -60,7 +60,7 @@ func (h *horizPlugin) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       h,
 		Name:         h.horfqdn.name,
-		Priority:     10,
+		Position:     10,
 		MaxInstances: support.MaxHandlerInstances,
 		Transforms:   []string{string(oam.FQDN)},
 		EventType:    oam.FQDN,
@@ -76,7 +76,7 @@ func (h *horizPlugin) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       h,
 		Name:         h.horContact.name,
-		Priority:     10,
+		Position:     10,
 		MaxInstances: support.MaxHandlerInstances,
 		Transforms:   []string{string(oam.ContactRecord)},
 		EventType:    oam.ContactRecord,

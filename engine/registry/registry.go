@@ -57,13 +57,13 @@ loop:
 		return err
 	}
 
-	if h.Priority <= 0 {
-		h.Priority = 1
-	} else if h.Priority > 50 {
-		h.Priority = 50
+	if h.Position <= 0 {
+		h.Position = 1
+	} else if h.Position > 50 {
+		h.Position = 50
 	}
 
-	et, p := string(h.EventType), h.Priority
+	et, p := string(h.EventType), h.Position
 	r.handlers[et][p] = append(r.handlers[et][p], h)
 	return nil
 }

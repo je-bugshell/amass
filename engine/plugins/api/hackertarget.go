@@ -53,7 +53,7 @@ func (ht *hackerTarget) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       ht,
 		Name:         ht.name + "-Handler",
-		Priority:     25,
+		Position:     25,
 		MaxInstances: support.MidHandlerInstances,
 		Transforms:   []string{string(oam.FQDN)},
 		EventType:    oam.FQDN,

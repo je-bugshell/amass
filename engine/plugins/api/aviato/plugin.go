@@ -45,7 +45,7 @@ func (a *aviato) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       a,
 		Name:         a.employees.name,
-		Priority:     41,
+		Position:     41,
 		MaxInstances: support.MinHandlerInstances,
 		Transforms:   []string{string(oam.Person)},
 		EventType:    oam.Identifier,
@@ -62,7 +62,7 @@ func (a *aviato) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       a,
 		Name:         a.companyRounds.name,
-		Priority:     42,
+		Position:     42,
 		MaxInstances: support.MinHandlerInstances,
 		Transforms: []string{
 			string(oam.Organization),
@@ -83,7 +83,7 @@ func (a *aviato) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       a,
 		Name:         a.companyEnrich.name,
-		Priority:     43,
+		Position:     43,
 		MaxInstances: support.MinHandlerInstances,
 		Transforms:   []string{string(oam.Organization)},
 		EventType:    oam.Identifier,
@@ -100,7 +100,7 @@ func (a *aviato) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       a,
 		Name:         a.companySearch.name,
-		Priority:     41,
+		Position:     41,
 		MaxInstances: support.MinHandlerInstances,
 		Transforms:   []string{string(oam.Identifier)},
 		EventType:    oam.Organization,

@@ -40,8 +40,7 @@ func (pi *pipelineInstance) enqueue(e *et.Event) error {
 	data := et.NewEventDataElement(e)
 	data.Exit = pi.parent.dis.cchan
 	data.Ref = pi // optional: keep a ref to the instance
-	pi.ap.Queue.Append(data)
-	return nil
+	return pi.ap.Queue.Append(data)
 }
 
 func (pi *pipelineInstance) onDequeue(e *et.Event) {

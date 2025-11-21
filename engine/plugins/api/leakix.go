@@ -52,7 +52,7 @@ func (ix *leakix) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       ix,
 		Name:         ix.name + "-Handler",
-		Priority:     27,
+		Position:     27,
 		MaxInstances: support.MidHandlerInstances,
 		Transforms:   []string{string(oam.FQDN)},
 		EventType:    oam.FQDN,

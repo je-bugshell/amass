@@ -48,7 +48,7 @@ func (bu *bannerURLs) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       bu,
 		Name:         bu.name + "-Handler",
-		Priority:     10,
+		Position:     10,
 		MaxInstances: support.MidHandlerInstances,
 		Transforms:   []string{string(oam.URL)},
 		EventType:    oam.Service,

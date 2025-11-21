@@ -58,7 +58,7 @@ func (hp *httpProbing) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       hp,
 		Name:         hp.fqdnend.name,
-		Priority:     41,
+		Position:     41,
 		MaxInstances: support.MinHandlerInstances,
 		Transforms: []string{
 			string(oam.Service),
@@ -77,7 +77,7 @@ func (hp *httpProbing) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       hp,
 		Name:         hp.ipaddr.name,
-		Priority:     42,
+		Position:     42,
 		MaxInstances: support.MinHandlerInstances,
 		Transforms: []string{
 			string(oam.Service),

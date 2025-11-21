@@ -100,7 +100,7 @@ func (rd *rdapPlugin) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       rd,
 		Name:         rd.autsys.name,
-		Priority:     40,
+		Position:     40,
 		MaxInstances: support.MinHandlerInstances,
 		Transforms:   []string{string(oam.AutnumRecord)},
 		EventType:    oam.AutonomousSystem,
@@ -126,7 +126,7 @@ func (rd *rdapPlugin) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       rd,
 		Name:         rd.autnum.name,
-		Priority:     10,
+		Position:     10,
 		MaxInstances: support.MidHandlerInstances,
 		Transforms:   rd.autnum.transforms,
 		EventType:    oam.AutnumRecord,
@@ -142,7 +142,7 @@ func (rd *rdapPlugin) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       rd,
 		Name:         rd.netblock.name,
-		Priority:     40,
+		Position:     40,
 		MaxInstances: support.MinHandlerInstances,
 		Transforms:   []string{string(oam.IPNetRecord)},
 		EventType:    oam.Netblock,
@@ -168,7 +168,7 @@ func (rd *rdapPlugin) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       rd,
 		Name:         rd.ipnet.name,
-		Priority:     10,
+		Position:     10,
 		MaxInstances: support.MidHandlerInstances,
 		Transforms:   rd.ipnet.transforms,
 		EventType:    oam.IPNetRecord,

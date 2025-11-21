@@ -53,7 +53,7 @@ func (z *zetalytics) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       z,
 		Name:         z.name + "-Handler",
-		Priority:     32,
+		Position:     32,
 		MaxInstances: support.MidHandlerInstances,
 		Transforms:   []string{string(oam.FQDN)},
 		EventType:    oam.FQDN,

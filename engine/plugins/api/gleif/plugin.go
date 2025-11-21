@@ -40,7 +40,7 @@ func (g *gleif) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       g,
 		Name:         g.fuzzy.name,
-		Priority:     48,
+		Position:     48,
 		MaxInstances: support.MinHandlerInstances,
 		Transforms:   []string{string(oam.Identifier)},
 		EventType:    oam.Organization,
@@ -57,7 +57,7 @@ func (g *gleif) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       g,
 		Name:         g.related.name,
-		Priority:     48,
+		Position:     48,
 		MaxInstances: support.MinHandlerInstances,
 		Transforms:   []string{string(oam.Organization)},
 		EventType:    oam.Identifier,

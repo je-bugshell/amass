@@ -46,7 +46,8 @@ func (j *jarmPlugin) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       j,
 		Name:         j.name + "-Handler",
-		MaxInstances: 25,
+		Position:     42,
+		MaxInstances: support.MidHandlerInstances,
 		Transforms:   []string{string(oam.Service)},
 		EventType:    oam.Service,
 		Callback:     j.check,

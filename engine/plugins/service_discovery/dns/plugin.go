@@ -45,7 +45,7 @@ func (p *dnsPlugin) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       p,
 		Name:         p.txt.name,
-		Priority:     12,
+		Position:     12,
 		MaxInstances: support.MaxHandlerInstances,
 		Transforms:   []string{string(oam.Organization)},
 		EventType:    oam.FQDN,

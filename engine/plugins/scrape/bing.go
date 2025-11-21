@@ -54,7 +54,7 @@ func (b *bing) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       b,
 		Name:         b.name + "-Handler",
-		Priority:     33,
+		Position:     33,
 		MaxInstances: support.MidHandlerInstances,
 		Transforms:   []string{string(oam.FQDN)},
 		EventType:    oam.FQDN,

@@ -56,7 +56,7 @@ func (u *urlexpand) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       u,
 		Name:         u.name,
-		Priority:     10,
+		Position:     10,
 		MaxInstances: support.MidHandlerInstances,
 		Transforms:   u.transforms,
 		EventType:    oam.URL,

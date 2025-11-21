@@ -52,7 +52,7 @@ func (pt *passiveTotal) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       pt,
 		Name:         pt.name + "-Handler",
-		Priority:     28,
+		Position:     28,
 		MaxInstances: support.MidHandlerInstances,
 		Transforms:   []string{string(oam.FQDN)},
 		EventType:    oam.FQDN,

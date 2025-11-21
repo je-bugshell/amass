@@ -54,7 +54,7 @@ func (rd *rapidDNS) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       rd,
 		Name:         rd.name + "-Handler",
-		Priority:     36,
+		Position:     36,
 		MaxInstances: support.MidHandlerInstances,
 		Transforms:   []string{string(oam.FQDN)},
 		EventType:    oam.FQDN,

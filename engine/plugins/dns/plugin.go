@@ -70,7 +70,7 @@ func (d *dnsPlugin) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       d,
 		Name:         d.cname.name,
-		Priority:     2,
+		Position:     2,
 		MaxInstances: support.MaxHandlerInstances,
 		Transforms:   []string{string(oam.FQDN)},
 		EventType:    oam.FQDN,
@@ -92,7 +92,7 @@ func (d *dnsPlugin) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       d,
 		Name:         d.ip.name,
-		Priority:     3,
+		Position:     3,
 		MaxInstances: support.MaxHandlerInstances,
 		Transforms:   []string{string(oam.IPAddress)},
 		EventType:    oam.FQDN,
@@ -105,7 +105,7 @@ func (d *dnsPlugin) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       d,
 		Name:         d.subs.name,
-		Priority:     7,
+		Position:     7,
 		MaxInstances: support.MaxHandlerInstances,
 		Transforms:   []string{string(oam.FQDN)},
 		EventType:    oam.FQDN,
@@ -119,7 +119,7 @@ func (d *dnsPlugin) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       d,
 		Name:         d.apex.name,
-		Priority:     8,
+		Position:     8,
 		MaxInstances: support.MaxHandlerInstances,
 		Transforms:   []string{string(oam.FQDN)},
 		EventType:    oam.FQDN,
@@ -140,7 +140,7 @@ func (d *dnsPlugin) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       d,
 		Name:         d.txt.name,
-		Priority:     9,
+		Position:     9,
 		MaxInstances: support.MaxHandlerInstances,
 		Transforms:   []string{string(oam.FQDN)},
 		EventType:    oam.FQDN,
@@ -153,7 +153,7 @@ func (d *dnsPlugin) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       d,
 		Name:         d.reverse.name,
-		Priority:     8,
+		Position:     8,
 		MaxInstances: support.HighHandlerInstances,
 		Transforms:   []string{string(oam.FQDN)},
 		EventType:    oam.IPAddress,

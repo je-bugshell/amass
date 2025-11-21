@@ -57,7 +57,7 @@ func (g *grepApp) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       g,
 		Name:         name,
-		Priority:     24,
+		Position:     24,
 		MaxInstances: support.MidHandlerInstances,
 		Transforms:   []string{string(oam.Identifier)},
 		EventType:    oam.FQDN,

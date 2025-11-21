@@ -14,7 +14,7 @@ import (
 type Event struct {
 	Name       string
 	Entity     *dbt.Entity
-	Meta       interface{}
+	Meta       any
 	Dispatcher Dispatcher
 	Session    Session
 }
