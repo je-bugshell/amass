@@ -9,12 +9,21 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
+	"github.com/InfluxCommunity/influxdb3-go/v2/influxdb3"
 	"github.com/caffix/pipeline"
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/owasp-amass/amass/v5/config"
 	et "github.com/owasp-amass/amass/v5/engine/types"
 )
+
+var influxClient *influxdb3.Client
+
+func init() {
+	// Create a new client using INFLUX_* environment variables.
+	influxClient, _ = influxdb3.NewFromEnv()
+}
 
 func (r *registry) BuildAssetPipeline(atype string) (*et.AssetPipeline, error) {
 	var stages []pipeline.Stage
@@ -61,6 +70,7 @@ func (r *registry) BuildAssetPipeline(atype string) (*et.AssetPipeline, error) {
 			r.Log().Error(fmt.Sprintf("Pipeline terminated: %v", err), "OAM type", atype)
 		}
 	}(ap)
+
 	return ap, nil
 }
 
@@ -114,8 +124,19 @@ func handlerTask(h *et.Handler) pipeline.TaskFunc {
 				}
 			}
 			if pmatch {
+				start := time.Now()
 				if err := r.Callback(ede.Event); err != nil {
 					ede.Error = multierror.Append(ede.Error, err)
+				}
+				if influxClient != nil {
+					end := time.Now()
+					p := influxdb3.NewPointWithMeasurement("handler_duration").
+						SetTag("atype", from).
+						SetTag("plugin", pname).
+						SetField("key", ede.Event.Entity.Asset.Key()).
+						SetField("duration", end.Sub(start).Nanoseconds()).
+						SetTimestamp(end)
+					_ = influxClient.WritePoints(ctx, []*influxdb3.Point{p})
 				}
 			}
 		}
