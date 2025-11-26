@@ -1182,8 +1182,8 @@ github.com/owasp-amass/asset-db v0.23.2-0.20251114000254-cc18da83cdea h1:5l/t/C5
 github.com/owasp-amass/asset-db v0.23.2-0.20251114000254-cc18da83cdea/go.mod h1:pPvk+tCwy1nhT9E3eVeZ3z6CaTKSEe+nLBiVd+2Q10I=
 github.com/owasp-amass/open-asset-model v0.15.0 h1:j+iXhkxmRIM+XdtJerazBA4KcJIdUZ+DLB88QRCcSdo=
 github.com/owasp-amass/open-asset-model v0.15.0/go.mod h1:DOX+SiD6PZBroSMnsILAmpf0SHi6TVpqjV4uNfBeg7g=
-github.com/owasp-amass/resolve v0.9.7-0.20251125200007-9917c9c03621 h1:20lGbA62zU+MhU2Y7SsVpf5Ey2nTzLex5CV+YtufvpI=
-github.com/owasp-amass/resolve v0.9.7-0.20251125200007-9917c9c03621/go.mod h1:WBPBSJ8ILr8MUpIdacnFpUPRRe/WhusprLhhNmgkDx0=
+github.com/owasp-amass/resolve v0.9.7-0.20251126064522-e795f1c1296a h1:cwiIBIefLWkzefDQ2OwgfBGmE5Dc3R64nB5tkyEFhs8=
+github.com/owasp-amass/resolve v0.9.7-0.20251126064522-e795f1c1296a/go.mod h1:WBPBSJ8ILr8MUpIdacnFpUPRRe/WhusprLhhNmgkDx0=
 github.com/pascaldekloe/goe v0.0.0-20180627143212-57f6aae5913c/go.mod h1:lzWF7FIEvWOWxwDKqyGYQf6ZUaNfKdP144TG7ZOy1lc=
 github.com/pascaldekloe/goe v0.1.0/go.mod h1:lzWF7FIEvWOWxwDKqyGYQf6ZUaNfKdP144TG7ZOy1lc=
 github.com/performancecopilot/speed/v4 v4.0.0/go.mod h1:qxrSyuDGrTOWfV+uKRFhfxw6h/4HXRGUiZiufxo49BM=
