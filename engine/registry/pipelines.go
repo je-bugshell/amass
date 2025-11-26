@@ -13,16 +13,26 @@ import (
 
 	"github.com/InfluxCommunity/influxdb3-go/v2/influxdb3"
 	"github.com/caffix/pipeline"
+	"github.com/caffix/queue"
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/owasp-amass/amass/v5/config"
 	et "github.com/owasp-amass/amass/v5/engine/types"
 )
 
-var influxClient *influxdb3.Client
+var (
+	dataPointQueue queue.Queue
+	influxClient   *influxdb3.Client
+)
 
 func init() {
+	var err error
+
+	dataPointQueue = queue.NewQueue()
 	// Create a new client using INFLUX_* environment variables.
-	influxClient, _ = influxdb3.NewFromEnv()
+	influxClient, err = influxdb3.NewFromEnv()
+	if err == nil {
+		go writeInfluxDataPoints()
+	}
 }
 
 func (r *registry) BuildAssetPipeline(atype string) (*et.AssetPipeline, error) {
@@ -130,12 +140,10 @@ func handlerTask(h *et.Handler) pipeline.TaskFunc {
 				}
 				if influxClient != nil {
 					end := time.Now()
+					duration := end.Sub(start).Nanoseconds()
 					handlerID := fmt.Sprintf("%s-%d", from, h.Position)
-					p := influxdb3.NewPointWithMeasurement("handler_duration").
-						SetTag("handler", handlerID).
-						SetField("duration", end.Sub(start).Nanoseconds()).
-						SetTimestamp(end)
-					_ = influxClient.WritePoints(ctx, []*influxdb3.Point{p})
+					dataPointQueue.Append(influxdb3.NewPointWithMeasurement("handler_duration").
+						SetTag("handler", handlerID).SetField("duration", duration).SetTimestamp(end))
 				}
 			}
 		}
@@ -184,4 +192,34 @@ func allExcludesPlugin(transformations []*config.Transformation, pname string) b
 		}
 	}
 	return false
+}
+
+func writeInfluxDataPoints() {
+	t := time.NewTicker(5 * time.Second)
+	defer t.Stop()
+
+	write := func() {
+		var points []*influxdb3.Point
+
+		dataPointQueue.Process(func(item interface{}) {
+			if p, valid := item.(*influxdb3.Point); valid {
+				points = append(points, p)
+			}
+		})
+
+		if len(points) > 0 {
+			_ = influxClient.WritePoints(context.Background(), points)
+		}
+	}
+
+	for {
+		select {
+		case <-t.C:
+			write()
+		case <-dataPointQueue.Signal():
+			if dataPointQueue.Len() >= 100 {
+				write()
+			}
+		}
+	}
 }
