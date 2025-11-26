@@ -53,7 +53,7 @@ func (cr *contactrec) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       cr,
 		Name:         cr.name,
-		Position:     10,
+		Position:     40,
 		MaxInstances: support.MidHandlerInstances,
 		Transforms:   cr.transforms,
 		EventType:    oam.ContactRecord,
