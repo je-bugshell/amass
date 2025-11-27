@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net"
 	"net/netip"
+	"sync"
 	"time"
 
 	"github.com/owasp-amass/amass/v5/engine/plugins/support"
@@ -23,6 +24,7 @@ import (
 )
 
 type netblock struct {
+	sync.Mutex
 	name   string
 	plugin *bgpTools
 }
@@ -47,8 +49,8 @@ func (r *netblock) check(e *et.Event) error {
 		return nil
 	}
 
-	r.plugin.Lock()
-	defer r.plugin.Unlock()
+	r.Lock()
+	defer r.Unlock()
 
 	// re-check if there's a netblock associated with this IP address
 	if found, err := e.Session.CIDRanger().Contains(net.ParseIP(ipstr)); err == nil && found {

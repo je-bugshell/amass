@@ -34,14 +34,44 @@ func (r *autsys) Name() string {
 }
 
 func (r *autsys) check(e *et.Event) error {
-	nb, ok := e.Entity.Asset.(*oamnet.Netblock)
-	if !ok {
+	nb, valid := e.Entity.Asset.(*oamnet.Netblock)
+	if !valid {
 		return errors.New("failed to extract the Netblock asset")
 	}
 
 	ipstr := nb.CIDR.Addr().String()
 	if reserved, _ := amassnet.IsReservedAddress(ipstr); reserved {
 		return nil
+	}
+
+	cidr := nb.Key()
+	_, ipnet, _ := net.ParseCIDR(cidr)
+	if ipnet == nil {
+		return nil
+	}
+
+	first, _ := amassnet.FirstLast(ipnet)
+	if first == nil {
+		return nil
+	}
+
+	// check if there's a autonomous system associated with this netblock
+	if asn, src := r.checkCIDRanger(e, cidr, first); asn != 0 {
+		if asent := r.store(e, asn, e.Entity, src); asent != nil {
+			r.process(e, e.Entity, asent)
+			return nil
+		}
+	}
+
+	r.Lock()
+	defer r.Unlock()
+
+	// re-check if there's a autonomous system associated with this netblock
+	if asn, src := r.checkCIDRanger(e, cidr, first); asn != 0 {
+		if asent := r.store(e, asn, e.Entity, src); asent != nil {
+			r.process(e, e.Entity, asent)
+			return nil
+		}
 	}
 
 	since, err := support.TTLStartTime(e.Session.Config(), string(oam.Netblock), string(oam.AutonomousSystem), r.plugin.name)
@@ -84,33 +114,9 @@ func (r *autsys) lookup(e *et.Event, nb *dbt.Entity, since time.Time) *dbt.Entit
 }
 
 func (r *autsys) query(e *et.Event, nb *dbt.Entity) *dbt.Entity {
-	cidr := nb.Asset.Key()
-
-	_, ipnet, _ := net.ParseCIDR(cidr)
-	if ipnet == nil {
-		return nil
-	}
-
-	first, _ := amassnet.FirstLast(ipnet)
-	if first == nil {
-		return nil
-	}
-
-	if asn, src := r.checkCIDRanger(e, cidr, first); asn != 0 {
-		return r.store(e, asn, nb, src)
-	}
-
-	r.plugin.Lock()
-	defer r.plugin.Unlock()
-
-	// Check the CIDR ranger again in case another thread updated it
-	if asn, src := r.checkCIDRanger(e, cidr, first); asn != 0 {
-		return r.store(e, asn, nb, src)
-	}
-
 	var asn int
-	var src *et.Source
 	arg := nb.Asset.Key()
+
 	if record, err := r.plugin.whois(arg); err == nil {
 		asn = record.ASN
 	} else {
@@ -121,7 +127,7 @@ func (r *autsys) query(e *et.Event, nb *dbt.Entity) *dbt.Entity {
 	if asn == 0 {
 		return nil
 	}
-	return r.store(e, asn, nb, src)
+	return r.store(e, asn, nb, r.plugin.source)
 }
 
 func (r *autsys) checkCIDRanger(e *et.Event, cidr string, ip net.IP) (int, *et.Source) {

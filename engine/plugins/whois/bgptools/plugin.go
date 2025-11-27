@@ -14,7 +14,6 @@ import (
 	"net/netip"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/miekg/dns"
@@ -26,7 +25,6 @@ import (
 )
 
 type bgpTools struct {
-	sync.Mutex
 	name     string
 	addr     string
 	port     int
