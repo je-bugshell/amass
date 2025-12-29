@@ -6,6 +6,7 @@ package sessions
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -20,6 +21,7 @@ import (
 	assetdb "github.com/owasp-amass/asset-db"
 	"github.com/owasp-amass/asset-db/repository"
 	"github.com/owasp-amass/asset-db/repository/neo4j"
+	"github.com/owasp-amass/asset-db/repository/postgres"
 	"github.com/owasp-amass/asset-db/repository/sqlite3"
 	"github.com/yl2chen/cidranger"
 )
@@ -168,10 +170,10 @@ func (s *Session) selectDBMS() error {
 			db.System = strings.ToLower(db.System)
 
 			switch db.System {
-			/*case "postgres":
-			// Construct the connection string for a Postgres database.
-			s.dsn = fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s", db.Host, db.Port, db.Username, db.Password, db.DBName)
-			s.dbtype = sqlrepo.Postgres*/
+			case "postgres":
+				// Construct the connection string for a Postgres database.
+				s.dsn = fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s", db.Host, db.Port, db.Username, db.Password, db.DBName)
+				s.dbtype = postgres.Postgres
 			case "sqlite":
 				fallthrough
 			case "sqlite3":
