@@ -85,7 +85,11 @@ func (c *Client) CreateSession(config *config.Config) (uuid.UUID, error) {
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusCreated {
-		return uuid.UUID{}, fmt.Errorf("createSession: status=%s", resp.Status)
+		msg, err := readJSONError(resp)
+		if err != nil {
+			return uuid.UUID{}, fmt.Errorf("createSession: status=%s", resp.Status)
+		}
+		return uuid.UUID{}, fmt.Errorf("createSession: status=%s error=%s", resp.Status, msg)
 	}
 
 	var out CreateSessionResponse
@@ -107,7 +111,11 @@ func (c *Client) ListSessions() ([]uuid.UUID, error) {
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("listSessions: status=%s", resp.Status)
+		msg, err := readJSONError(resp)
+		if err != nil {
+			return nil, fmt.Errorf("listSessions: status=%s", resp.Status)
+		}
+		return nil, fmt.Errorf("listSessions: status=%s error=%s", resp.Status, msg)
 	}
 
 	var out ListSessionsResponse
@@ -137,7 +145,11 @@ func (c *Client) TerminateSession(token uuid.UUID) error {
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusNoContent {
-		return fmt.Errorf("terminateSession: status=%s", resp.Status)
+		msg, err := readJSONError(resp)
+		if err != nil {
+			return fmt.Errorf("terminateSession: status=%s", resp.Status)
+		}
+		return fmt.Errorf("terminateSession: status=%s error=%s", resp.Status, msg)
 	}
 	return nil
 }
@@ -153,7 +165,11 @@ func (c *Client) SessionStats(token uuid.UUID) (*et.SessionStats, error) {
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("getStats: status=%s", resp.Status)
+		msg, err := readJSONError(resp)
+		if err != nil {
+			return nil, fmt.Errorf("getStats: status=%s", resp.Status)
+		}
+		return nil, fmt.Errorf("getStats: status=%s error=%s", resp.Status, msg)
 	}
 
 	var st et.SessionStats
@@ -183,7 +199,11 @@ func (c *Client) CreateAsset(token uuid.UUID, asset oam.Asset) (string, error) {
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("addAssetTyped: status=%s", resp.Status)
+		msg, err := readJSONError(resp)
+		if err != nil {
+			return "", fmt.Errorf("createAsset: status=%s", resp.Status)
+		}
+		return "", fmt.Errorf("createAsset: status=%s error=%s", resp.Status, msg)
 	}
 
 	var r AddAssetResponse
@@ -231,7 +251,11 @@ func (c *Client) CreateAssetsBulk(token uuid.UUID, atype string, assets []oam.As
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("addAssetsBulk: status=%s", resp.Status)
+		msg, err := readJSONError(resp)
+		if err != nil {
+			return 0, fmt.Errorf("addAssetsBulk: status=%s", resp.Status)
+		}
+		return 0, fmt.Errorf("addAssetsBulk: status=%s error=%s", resp.Status, msg)
 	}
 
 	var out BulkAddAssetsResponse
@@ -241,7 +265,7 @@ func (c *Client) CreateAssetsBulk(token uuid.UUID, atype string, assets []oam.As
 	return int(out.Stored), nil
 }
 
-// Creates subscription to receove a stream of log messages from the server.
+// Subscribe to receive a stream of log messages from the server.
 func (c *Client) Subscribe(token uuid.UUID) (<-chan string, error) {
 	u, err := url.Parse(c.base)
 	if err != nil {
@@ -290,4 +314,14 @@ func (c *Client) Subscribe(token uuid.UUID) (<-chan string, error) {
 		}
 	}()
 	return ch, nil
+}
+
+func readJSONError(resp *http.Response) (string, error) {
+	var errResp struct {
+		Message string `json:"error"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
+		return "", err
+	}
+	return errResp.Message, nil
 }

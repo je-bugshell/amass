@@ -233,7 +233,6 @@ func CLIWorkflow(cmdName string, clArgs []string) {
 			stored, err := c.CreateAssetsBulk(token, string(oam.FQDN), provFQDNs)
 			if err != nil {
 				_, _ = afmt.R.Fprintf(color.Error, "Failed to perform a bulk transfer of assets: %v\n", err)
-				continue
 			}
 
 			count += stored
