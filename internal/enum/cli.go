@@ -175,7 +175,7 @@ func CLIWorkflow(cmdName string, clArgs []string) {
 	}
 
 	// Create the client that will provide a connection to the engine
-	url := "http://127.0.0.1:4000/graphql"
+	url := "http://127.0.0.1:4000"
 	if cfg.EngineAPI != nil && cfg.EngineAPI.URL != "" {
 		url = cfg.EngineAPI.URL
 	}

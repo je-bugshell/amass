@@ -69,7 +69,13 @@ func (c *Client) Close() {
 
 // Creates a new session on the server with the provided configuration.
 func (c *Client) CreateSession(config *config.Config) (uuid.UUID, error) {
-	req, _ := http.NewRequest(http.MethodPost, c.base+"/v1/sessions", nil)
+	raw, err := json.Marshal(config)
+	if err != nil {
+		return uuid.UUID{}, err
+	}
+
+	req, _ := http.NewRequest(http.MethodPost, c.base+"/v1/sessions", bytes.NewReader(raw))
+	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -91,7 +97,7 @@ func (c *Client) CreateSession(config *config.Config) (uuid.UUID, error) {
 
 // Lists the active session and associated tokens on the server.
 func (c *Client) ListSessions() ([]uuid.UUID, error) {
-	req, _ := http.NewRequest(http.MethodPost, c.base+"/v1/sessions", nil)
+	req, _ := http.NewRequest(http.MethodGet, c.base+"/v1/sessions", nil)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
