@@ -7,7 +7,6 @@ package server
 import (
 	"encoding/json"
 	"errors"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -226,19 +225,16 @@ func (s *Server) addAssetsBulkHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(req.Items) > maxBulkItems {
-		writeError(w, http.StatusRequestEntityTooLarge, "too many items in bulk request", errors.New("max items exceeded"))
+		writeError(w, http.StatusRequestEntityTooLarge,
+			"too many items in bulk request", errors.New("max items exceeded"))
 		return
 	}
 
 	assets := make([]oam.Asset, 0, len(req.Items))
-	for i, raw := range req.Items {
-		a, err := parseAsset(assetType, raw)
-		if err != nil {
-			// count as failed ingest, but continue
-			log.Printf("item[%d] parseAsset failed: %v; raw=%s", i, err, string(raw))
-			continue
+	for _, raw := range req.Items {
+		if a, err := parseAsset(assetType, raw); err == nil {
+			assets = append(assets, a)
 		}
-		assets = append(assets, a)
 	}
 
 	ingested := int64(len(assets))

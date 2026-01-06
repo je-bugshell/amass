@@ -125,7 +125,7 @@ func (s *Server) routes(r *mux.Router) {
 	// Single add: type in path (since OAM payload does not include it)
 	assets.HandleFunc("/{asset_type:"+assetTypeRE+"}", s.addAssetTypedHandler).Methods(http.MethodPost)
 	// Bulk add: :bulk suffix
-	assets.HandleFunc("/{"+assetTypeRE+"}:bulk", s.addAssetsBulkHandler).Methods(http.MethodPost)
+	assets.HandleFunc("/{asset_type:"+assetTypeRE+"}:bulk", s.addAssetsBulkHandler).Methods(http.MethodPost)
 
 	// WebSocket logs only
 	ws := session.PathPrefix("/ws").Subrouter()
