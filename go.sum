@@ -1231,8 +1231,8 @@ github.com/opentracing/opentracing-go v1.2.0/go.mod h1:GxEUsuufX4nBwe+T+Wl9TAgYr
 github.com/openzipkin/zipkin-go v0.2.5/go.mod h1:KpXfKdgRDnnhsxw4pNIH9Md5lyFqKUa4YDFlwRYAMyE=
 github.com/orisano/pixelmatch v0.0.0-20220722002657-fb0b55479cde h1:x0TT0RDC7UhAVbbWWBzr41ElhJx5tXPWkIHA2HWPRuw=
 github.com/orisano/pixelmatch v0.0.0-20220722002657-fb0b55479cde/go.mod h1:nZgzbfBr3hhjoZnS66nKrHmduYNpc34ny7RK4z5/HM0=
-github.com/owasp-amass/asset-db v0.23.2-0.20251230000050-356706aa9b01 h1:bugKJcipOypMClQCv8TIwYil/KGxKUzrla8vS+tUww0=
-github.com/owasp-amass/asset-db v0.23.2-0.20251230000050-356706aa9b01/go.mod h1:rt/2r22/iXMFcT91y1J+W0REXLWLCSd5clgzJwsijwY=
+github.com/owasp-amass/asset-db v0.23.2-0.20260108015700-51e8b5f4767d h1:eCyqQGeoaQ5oKDkl5LHRRMgd6mwR6q8n9Y0bFYJrQ1o=
+github.com/owasp-amass/asset-db v0.23.2-0.20260108015700-51e8b5f4767d/go.mod h1:hlGQZSCHlhRgMHBJg1762slw1oxpi+CRCy20+ROaH28=
 github.com/owasp-amass/open-asset-model v0.15.0 h1:j+iXhkxmRIM+XdtJerazBA4KcJIdUZ+DLB88QRCcSdo=
 github.com/owasp-amass/open-asset-model v0.15.0/go.mod h1:DOX+SiD6PZBroSMnsILAmpf0SHi6TVpqjV4uNfBeg7g=
 github.com/owasp-amass/resolve v0.9.7-0.20251129211322-c54b3063b5ae h1:bCx++oYSh65khD1EtbSEWLqX/UpZt8CG6rkzAZcmXRY=
@@ -1344,8 +1344,8 @@ github.com/samber/slog-common v0.19.0/go.mod h1:dTz+YOU76aH007YUU0DffsXNsGFQRQll
 github.com/samber/slog-syslog/v2 v2.5.2 h1:Z2gvh8asdPZ2O4hwCoMFbl7UchpgXwUjuY60s3uzK5U=
 github.com/samber/slog-syslog/v2 v2.5.2/go.mod h1:y4GGHr2Loc3bUcy4arWK9ds5b6rkekE5QUGRfUvq6zk=
 github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529/go.mod h1:DxrIzT+xaE7yg65j358z/aeFdxmN0P9QXhEzd20vsDc=
-github.com/shirou/gopsutil/v4 v4.25.11 h1:X53gB7muL9Gnwwo2evPSE+SfOrltMoR6V3xJAXZILTY=
-github.com/shirou/gopsutil/v4 v4.25.11/go.mod h1:EivAfP5x2EhLp2ovdpKSozecVXn1TmuG7SMzs/Wh4PU=
+github.com/shirou/gopsutil/v4 v4.25.12 h1:e7PvW/0RmJ8p8vPGJH4jvNkOyLmbkXgXW4m6ZPic6CY=
+github.com/shirou/gopsutil/v4 v4.25.12/go.mod h1:EivAfP5x2EhLp2ovdpKSozecVXn1TmuG7SMzs/Wh4PU=
 github.com/sirupsen/logrus v1.2.0/go.mod h1:LxeOpSwHxABJmUn/MG1IvRgCAasNZTLOkJPxbbu5VWo=
 github.com/sirupsen/logrus v1.4.2/go.mod h1:tLMulIdttU9McNUspp0xgXVQah82FyeX6MwdIuYE2rE=
 github.com/sirupsen/logrus v1.6.0/go.mod h1:7uNnSEd1DgxDLC74fIahvMZmmYsHGZGEOFrfsX/uA88=
