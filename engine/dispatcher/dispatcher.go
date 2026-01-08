@@ -71,16 +71,16 @@ func (d *dynamicDispatcher) runEvents() {
 		case e := <-d.cchan:
 			d.cqueue.Append(e)
 		case <-d.cqueue.Signal():
-			d.cqueue.Process(func(data interface{}) {
+			if data, ok := d.cqueue.Next(); ok {
 				if ede, valid := data.(*et.EventDataElement); valid {
 					d.completedCallback(ede)
 				}
-			})
+			}
 		}
 	}
 }
 
-func (d *dynamicDispatcher) completedCallback(data interface{}) {
+func (d *dynamicDispatcher) completedCallback(data any) {
 	ede, ok := data.(*et.EventDataElement)
 	if !ok {
 		return
