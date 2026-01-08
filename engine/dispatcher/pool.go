@@ -105,7 +105,6 @@ type pipelinePool struct {
 	lastScale       time.Time
 	pendingSessions map[string]et.Session
 	wake            chan struct{}
-	started         sync.Once
 }
 
 func newPipelinePool(dis *dynamicDispatcher, atype oam.AssetType, min, max int) *pipelinePool {
@@ -115,7 +114,8 @@ func newPipelinePool(dis *dynamicDispatcher, atype oam.AssetType, min, max int) 
 	if max < min {
 		max = min
 	}
-	return &pipelinePool{
+
+	p := &pipelinePool{
 		log:             dis.log,
 		dis:             dis,
 		reg:             dis.reg,
@@ -130,6 +130,9 @@ func newPipelinePool(dis *dynamicDispatcher, atype oam.AssetType, min, max int) 
 		pendingSessions: make(map[string]et.Session),
 		wake:            make(chan struct{}, 1),
 	}
+
+	go p.runPump()
+	return p
 }
 
 // Dispatch routes the event to an instance based on a session-aware shardKey.
@@ -165,12 +168,6 @@ func (p *pipelinePool) ensureMinInstances() {
 	for len(p.instances) < p.minInstances {
 		p.createInstanceLocked()
 	}
-
-	p.startPump()
-}
-
-func (p *pipelinePool) startPump() {
-	p.started.Do(func() { go p.runPump() })
 }
 
 func (p *pipelinePool) runPump() {
@@ -347,10 +344,12 @@ func (p *pipelinePool) createInstanceLocked() *pipelineInstance {
 
 	id := fmt.Sprintf("%s-%d", p.eventTy, len(p.instances)+1)
 	inst := &pipelineInstance{
-		parent: p,
-		id:     id,
-		atype:  p.eventTy,
-		ap:     ap,
+		parent:    p,
+		id:        id,
+		atype:     p.eventTy,
+		ap:        ap,
+		maxQueued: 200,
+		lowWater:  100,
 	}
 	p.instances[id] = inst
 	p.ring.Add(id)
