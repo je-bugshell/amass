@@ -16,19 +16,31 @@ import (
 	"golang.org/x/net/publicsuffix"
 )
 
+var ErrBackpressure = fmt.Errorf("backpressure")
+
 type pipelineInstance struct {
-	parent   *pipelinePool
-	id       string
-	atype    oam.AssetType
-	ap       *et.AssetPipeline
-	draining atomic.Bool
-	queued   atomic.Int64
+	parent    *pipelinePool
+	id        string
+	atype     oam.AssetType
+	ap        *et.AssetPipeline
+	draining  atomic.Bool
+	queued    atomic.Int64
+	maxQueued int64 // e.g., 200 or 500; tune per asset type
+	lowWater  int64 // e.g., maxQueued/2; used for wakeups
+}
+
+func (pi *pipelineInstance) canAccept() bool {
+	if pi.draining.Load() {
+		return false
+	}
+	return pi.queued.Load() < pi.maxQueued
 }
 
 func (pi *pipelineInstance) enqueue(e *et.Event) error {
-	if pi.draining.Load() {
-		return fmt.Errorf("pipeline instance %s is draining", pi.id)
+	if !pi.canAccept() {
+		return ErrBackpressure
 	}
+	// Only increment AFTER admission decision
 	pi.queued.Add(1)
 
 	sid := sessionIDOf(e)
@@ -49,6 +61,11 @@ func (pi *pipelineInstance) onDequeue(e *et.Event) {
 	sid := sessionIDOf(e)
 	if sid != "" {
 		pi.parent.incSessionQueued(sid, -1)
+	}
+
+	// Wake the pool pump when we cross below lowWater
+	if pi.queueLen() == pi.lowWater {
+		pi.parent.notifyCapacity()
 	}
 
 	if pi.draining.Load() && pi.queueLen() == 0 {
@@ -82,9 +99,12 @@ type pipelinePool struct {
 	instances    map[string]*pipelineInstance // instanceID -> instance
 	ring         *hashRing                    // shardKey -> instanceID
 	// session fan-out and load tracking
-	sessionFanout map[string]int   // sessionID -> fanout factor (1 = no fanout)
-	sessionQueued map[string]int64 // sessionID -> queued count across all instances
-	lastScale     time.Time
+	sessionFanout   map[string]int   // sessionID -> fanout factor (1 = no fanout)
+	sessionQueued   map[string]int64 // sessionID -> queued count across all instances
+	lastScale       time.Time
+	pendingSessions map[string]et.Session
+	wake            chan struct{}
+	started         sync.Once
 }
 
 func newPipelinePool(dis *dynamicDispatcher, atype oam.AssetType, min, max int) *pipelinePool {
@@ -95,17 +115,19 @@ func newPipelinePool(dis *dynamicDispatcher, atype oam.AssetType, min, max int) 
 		max = min
 	}
 	return &pipelinePool{
-		log:           dis.log,
-		dis:           dis,
-		reg:           dis.reg,
-		eventTy:       atype,
-		minInstances:  min,
-		maxInstances:  max,
-		instances:     make(map[string]*pipelineInstance),
-		ring:          newHashRing(50),
-		sessionFanout: make(map[string]int),
-		sessionQueued: make(map[string]int64),
-		lastScale:     time.Now(),
+		log:             dis.log,
+		dis:             dis,
+		reg:             dis.reg,
+		eventTy:         atype,
+		minInstances:    min,
+		maxInstances:    max,
+		instances:       make(map[string]*pipelineInstance),
+		ring:            newHashRing(50),
+		sessionFanout:   make(map[string]int),
+		sessionQueued:   make(map[string]int64),
+		lastScale:       time.Now(),
+		pendingSessions: make(map[string]et.Session),
+		wake:            make(chan struct{}, 1),
 	}
 }
 
@@ -113,26 +135,26 @@ func newPipelinePool(dis *dynamicDispatcher, atype oam.AssetType, min, max int) 
 func (p *pipelinePool) Dispatch(e *et.Event) error {
 	p.ensureMinInstances()
 
-	// attempt the process again if selection fails
-	for i := range 2 {
-		shardKey := p.workShardKey(e)
-		inst := p.pickInstance(shardKey)
-		if inst == nil {
-			return fmt.Errorf("no pipeline instance available for %v", p.eventTy)
-		}
+	shardKey := p.workShardKey(e)
+	inst := p.pickInstance(shardKey)
+	if inst == nil {
+		return fmt.Errorf("no pipeline instance available for %v", p.eventTy)
+	}
 
-		if err := inst.enqueue(e); err != nil {
-			if i == 0 {
-				continue
-			}
-			return err
+	if err := inst.enqueue(e); err != nil {
+		if err == ErrBackpressure {
+			// Do not treat as failure: event is durable in session queue DB already
+			p.notePending(e) // mark that this session/atype has backlog
+			p.maybeScale()   // scaling may help shorten backpressure windows
+			p.maybeAdjustFanout(e)
+			return nil
 		}
-		break
+		return err
 	}
 
 	p.maybeScale()
 	p.maybeAdjustFanout(e)
-	return nil
+	return e.Session.Queue().Processed(e.Entity)
 }
 
 func (p *pipelinePool) ensureMinInstances() {
@@ -141,6 +163,114 @@ func (p *pipelinePool) ensureMinInstances() {
 
 	for len(p.instances) < p.minInstances {
 		p.createInstanceLocked()
+	}
+
+	p.startPump()
+}
+
+func (p *pipelinePool) startPump() {
+	p.started.Do(func() { go p.runPump() })
+}
+
+func (p *pipelinePool) runPump() {
+	tick := time.NewTicker(250 * time.Millisecond)
+	defer tick.Stop()
+
+	for {
+		select {
+		case <-p.dis.done:
+			return
+		case <-p.wake:
+			p.pumpOnce()
+		case <-tick.C:
+			p.pumpOnce()
+		}
+	}
+}
+
+func (p *pipelinePool) pumpOnce() {
+	// Snapshot pending sessions (avoid holding lock during DB calls)
+	sessions := p.snapshotPendingSessions()
+	if len(sessions) == 0 {
+		return
+	}
+
+	// Round-robin / bounded burst per session
+	const perSessionBurst = 10
+
+	for _, sess := range sessions {
+		entities, err := sess.Queue().Next(p.eventTy, perSessionBurst)
+		if err != nil {
+			p.clearPending(sess.ID().String())
+			continue
+		}
+
+		for _, ent := range entities {
+			event := &et.Event{
+				Name:       ent.Asset.Key(),
+				Entity:     ent,
+				Dispatcher: p.dis,
+				Session:    sess,
+			}
+
+			inst := p.pickInstance(p.workShardKey(event))
+			if inst == nil || !inst.canAccept() {
+				continue
+			}
+
+			if err := inst.enqueue(event); err == nil {
+				_ = sess.Queue().Processed(ent)
+			}
+		}
+	}
+}
+
+// snapshotPendingSessions returns a point-in-time list of session IDs that the pool
+// believes have pending work in the durable queue (or were previously blocked by
+// backpressure). The returned slice is safe to iterate without holding p.mu.
+func (p *pipelinePool) snapshotPendingSessions() []et.Session {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	if len(p.pendingSessions) == 0 {
+		return nil
+	}
+
+	sessions := make([]et.Session, 0, len(p.pendingSessions))
+	for _, sess := range p.pendingSessions {
+		sessions = append(sessions, sess)
+	}
+
+	return sessions
+}
+
+// clearPendingIfEmpty removes sid from pendingSessions.
+func (p *pipelinePool) clearPending(sid string) {
+	if sid == "" {
+		return
+	}
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	delete(p.pendingSessions, sid)
+}
+
+func (p *pipelinePool) notePending(e *et.Event) {
+	sid := sessionIDOf(e)
+	if sid == "" {
+		return
+	}
+	p.mu.Lock()
+	p.pendingSessions[sid] = e.Session
+	p.mu.Unlock()
+	p.notifyCapacity()
+}
+
+func (p *pipelinePool) notifyCapacity() {
+	select {
+	case p.wake <- struct{}{}:
+	default:
 	}
 }
 
@@ -383,7 +513,6 @@ func sessionIDOf(e *et.Event) string {
 	if e == nil || e.Session == nil {
 		return ""
 	}
-	// Adjust based on your session type API
 	return e.Session.ID().String()
 }
 
@@ -406,7 +535,7 @@ func assetKeyOf(e *et.Event) string {
 	switch e.Entity.Asset.AssetType() {
 	case oam.FQDN:
 		if name := e.Entity.Asset.Key(); name != "" {
-			if dom, err := publicsuffix.EffectiveTLDPlusOne(name); err != nil {
+			if dom, err := publicsuffix.EffectiveTLDPlusOne(name); err == nil {
 				return dom
 			}
 		}

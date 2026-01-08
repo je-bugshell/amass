@@ -86,8 +86,6 @@ func (d *dynamicDispatcher) completedCallback(data any) {
 		return
 	}
 
-	_ = ede.Event.Session.Queue().Processed(ede.Event.Entity)
-
 	if inst, ok := ede.Ref.(*pipelineInstance); ok {
 		inst.onDequeue(ede.Event)
 	}

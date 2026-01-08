@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"path/filepath"
+	"time"
 
 	qdb "github.com/owasp-amass/amass/v5/engine/sessions/queuedb"
 	dbt "github.com/owasp-amass/asset-db/types"
@@ -74,9 +75,13 @@ func (sq *sessionQueue) Next(atype oam.AssetType, num int) ([]*dbt.Entity, error
 
 	var results []*dbt.Entity
 	for _, id := range ids {
-		if e, err := sq.session.DB().FindEntityById(context.Background(), id); err == nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+
+		if e, err := sq.session.DB().FindEntityById(ctx, id); err == nil {
 			results = append(results, e)
 		}
+
+		cancel()
 	}
 
 	if len(results) == 0 {
