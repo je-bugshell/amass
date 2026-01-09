@@ -101,20 +101,29 @@ func (b *BacklogDB) ClaimNext(ctx context.Context, atype oam.AssetType, owner st
 		leaseUntil = now + int64(ttl.Seconds())
 	}
 
-	tx, err := b.db.BeginTx(ctx, &sql.TxOptions{})
+	// IMPORTANT: Use a single connection + explicit BEGIN IMMEDIATE to avoid
+	// "cannot start a transaction within a transaction" and to make claim atomic.
+	conn, err := b.db.Conn(ctx)
 	if err != nil {
 		return nil, err
 	}
-	defer func() { _ = tx.Rollback() }()
+	defer func() { _ = conn.Close() }()
 
-	// Ensure selection + lease is atomic among concurrent writers.
-	if _, err := tx.ExecContext(ctx, `BEGIN IMMEDIATE;`); err != nil {
+	// Begin immediate transaction
+	if _, err := conn.ExecContext(ctx, `BEGIN IMMEDIATE;`); err != nil {
 		return nil, err
 	}
 
+	committed := false
+	defer func() {
+		if !committed {
+			_, _ = conn.ExecContext(context.Background(), `ROLLBACK;`)
+		}
+	}()
+
 	var rows *sql.Rows
 	if ttl <= 0 {
-		rows, err = tx.QueryContext(ctx, `
+		rows, err = conn.QueryContext(ctx, `
 			SELECT id, entity_id
 			FROM backlog_items
 			WHERE etype = ?
@@ -124,7 +133,7 @@ func (b *BacklogDB) ClaimNext(ctx context.Context, atype oam.AssetType, owner st
 			key, StateQueued, n,
 		)
 	} else {
-		rows, err = tx.QueryContext(ctx, `
+		rows, err = conn.QueryContext(ctx, `
 			SELECT id, entity_id
 			FROM backlog_items
 			WHERE etype = ?
@@ -158,9 +167,10 @@ func (b *BacklogDB) ClaimNext(ctx context.Context, atype oam.AssetType, owner st
 	}
 
 	if len(ids) == 0 {
-		if err := tx.Commit(); err != nil {
+		if _, err := conn.ExecContext(ctx, `COMMIT;`); err != nil {
 			return nil, err
 		}
+		committed = true
 		return nil, nil
 	}
 
@@ -177,13 +187,15 @@ func (b *BacklogDB) ClaimNext(ctx context.Context, atype oam.AssetType, owner st
 	updateArgs := []any{StateLeased, owner, leaseUntil, now}
 	updateArgs = append(updateArgs, args...)
 
-	if _, err := tx.ExecContext(ctx, q, updateArgs...); err != nil {
+	if _, err := conn.ExecContext(ctx, q, updateArgs...); err != nil {
 		return nil, err
 	}
 
-	if err := tx.Commit(); err != nil {
+	if _, err := conn.ExecContext(ctx, `COMMIT;`); err != nil {
 		return nil, err
 	}
+	committed = true
+
 	return out, nil
 }
 
