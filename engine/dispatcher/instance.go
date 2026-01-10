@@ -26,6 +26,36 @@ type pipelineInstance struct {
 	lowWater  int64 // e.g., maxQueued/2; used for wakeups
 }
 
+func (p *pipelinePool) createInstanceLocked() *pipelineInstance {
+	if len(p.instances) >= p.maxInstances {
+		return nil
+	}
+
+	ap, err := p.reg.BuildAssetPipeline(string(p.eventTy))
+	if err != nil {
+		p.log.Error("BuildAssetPipeline failed", "atype", p.eventTy, "err", err)
+		return nil
+	}
+
+	id := fmt.Sprintf("%s-%d", p.eventTy, len(p.instances)+1)
+	inst := &pipelineInstance{
+		parent:    p,
+		id:        id,
+		atype:     p.eventTy,
+		ap:        ap,
+		maxQueued: 200,
+		lowWater:  100,
+	}
+	p.instances[id] = inst
+	p.ring.Add(id)
+
+	p.log.Info("created pipeline instance",
+		"atype", p.eventTy,
+		"id", id,
+	)
+	return inst
+}
+
 func (pi *pipelineInstance) canAccept() bool {
 	if pi.draining.Load() {
 		return false
