@@ -266,10 +266,13 @@ func CLIWorkflow(cmdName string, clArgs []string) {
 			case message := <-messages:
 				tools.WriteLogMessage(l, message)
 			case <-t.C:
-				if stats, err := c.SessionStats(token); err == nil {
+				if stats, err := c.SessionStats(token); err == nil && stats != nil {
+					stotal := max(count, stats.WorkItemsTotal)
+					scomplete := max(0, stats.WorkItemsCompleted)
+
 					if !args.Options.Silent {
-						progress.SetTotal(int64(stats.WorkItemsTotal))
-						progress.SetCurrent(int64(stats.WorkItemsCompleted))
+						progress.SetTotal(int64(stotal))
+						progress.SetCurrent(int64(scomplete))
 					}
 
 					if stats.WorkItemsCompleted == stats.WorkItemsTotal {
