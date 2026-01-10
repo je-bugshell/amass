@@ -12,6 +12,7 @@ import (
 
 	et "github.com/owasp-amass/amass/v5/engine/types"
 	oam "github.com/owasp-amass/open-asset-model"
+	"golang.org/x/net/publicsuffix"
 )
 
 type pipelinePool struct {
@@ -74,8 +75,6 @@ func newPipelinePool(dis *dynamicDispatcher, atype oam.AssetType, pmin, pmax int
 func (p *pipelinePool) Dispatch(e *et.Event) error {
 	// mark that this session/atype has backlog
 	p.notePending(e)
-	p.maybeScale()
-	p.maybeAdjustFanout(e)
 	return nil
 }
 
@@ -174,6 +173,11 @@ func (p *pipelinePool) pumpOnce() {
 	const perSessionBurst = 10
 
 	for _, sess := range sessions {
+		// check if this session work queue should have additional elements
+		if num := p.lenSessionWorkQueue(sess.ID().String()); num+perSessionBurst > int(sessionMaxQueued) {
+			continue
+		}
+
 		entities, err := sess.Backlog().ClaimNext(p.eventTy, perSessionBurst)
 		if err != nil || len(entities) == 0 {
 			p.clearPending(sess.ID().String())
@@ -201,8 +205,21 @@ func (p *pipelinePool) pumpOnce() {
 
 		if queued, _, _, err := sess.Backlog().Counts(p.eventTy); err == nil && queued == 0 {
 			p.clearPending(sess.ID().String())
+		} else if err == nil && queued > sessionGrowThreshold {
+			p.maybeAdjustFanout(sess.ID().String())
 		}
 	}
+}
+
+func (p *pipelinePool) lenSessionWorkQueue(sid string) int {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	queued, ok := p.sessionQueued[sid]
+	if !ok {
+		return 0
+	}
+	return int(queued)
 }
 
 // snapshotPendingSessions returns a point-in-time list of session IDs that the pool
@@ -254,4 +271,44 @@ func (p *pipelinePool) notifyCapacity() {
 	case p.wake <- struct{}{}:
 	default:
 	}
+}
+
+// ----------------------------------------------------------------
+// ---------------- Helpers for session keys ----------------------
+// ----------------------------------------------------------------
+
+// sessionIDOf extracts a stable session identifier from an event.
+func sessionIDOf(e *et.Event) string {
+	if e == nil || e.Session == nil {
+		return ""
+	}
+	return e.Session.ID().String()
+}
+
+// fallbackShardKey is used when we don't have a session; you can
+// make this smarter if needed.
+func fallbackShardKey(e *et.Event) string {
+	if e == nil || e.Entity == nil {
+		return ""
+	}
+	return e.Entity.ID
+}
+
+// assetKeyOf returns a stable per-asset key used to choose a bucket
+// within a session. This should be consistent with the AssetType.
+func assetKeyOf(e *et.Event) string {
+	if e == nil || e.Entity == nil {
+		return ""
+	}
+
+	switch e.Entity.Asset.AssetType() {
+	case oam.FQDN:
+		if name := e.Entity.Asset.Key(); name != "" {
+			if dom, err := publicsuffix.EffectiveTLDPlusOne(name); err == nil {
+				return dom
+			}
+		}
+	}
+
+	return e.Entity.Asset.Key()
 }

@@ -10,7 +10,6 @@ import (
 
 	et "github.com/owasp-amass/amass/v5/engine/types"
 	oam "github.com/owasp-amass/open-asset-model"
-	"golang.org/x/net/publicsuffix"
 )
 
 var ErrBackpressure = fmt.Errorf("backpressure")
@@ -82,6 +81,17 @@ func (pi *pipelineInstance) enqueue(e *et.Event) error {
 	return pi.ap.Queue.Append(data)
 }
 
+// incSessionQueued tracks total queued items for a session across instances.
+func (p *pipelinePool) incSessionQueued(sid string, delta int64) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.sessionQueued[sid] += delta
+	if p.sessionQueued[sid] <= 0 {
+		delete(p.sessionQueued, sid)
+	}
+}
+
 func (pi *pipelineInstance) onDequeue(e *et.Event) {
 	pi.queued.Add(-1)
 
@@ -110,44 +120,4 @@ func (pi *pipelineInstance) onDequeue(e *et.Event) {
 
 func (pi *pipelineInstance) queueLen() int64 {
 	return pi.queued.Load()
-}
-
-// ----------------------------------------------------------------
-// ---------------- Helpers for session keys ----------------------
-// ----------------------------------------------------------------
-
-// sessionIDOf extracts a stable session identifier from an event.
-func sessionIDOf(e *et.Event) string {
-	if e == nil || e.Session == nil {
-		return ""
-	}
-	return e.Session.ID().String()
-}
-
-// fallbackShardKey is used when we don't have a session; you can
-// make this smarter if needed.
-func fallbackShardKey(e *et.Event) string {
-	if e == nil || e.Entity == nil {
-		return ""
-	}
-	return e.Entity.ID
-}
-
-// assetKeyOf returns a stable per-asset key used to choose a bucket
-// within a session. This should be consistent with the AssetType.
-func assetKeyOf(e *et.Event) string {
-	if e == nil || e.Entity == nil {
-		return ""
-	}
-
-	switch e.Entity.Asset.AssetType() {
-	case oam.FQDN:
-		if name := e.Entity.Asset.Key(); name != "" {
-			if dom, err := publicsuffix.EffectiveTLDPlusOne(name); err == nil {
-				return dom
-			}
-		}
-	}
-
-	return e.Entity.Asset.Key()
 }

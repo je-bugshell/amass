@@ -6,20 +6,12 @@ package dispatcher
 
 import (
 	"time"
-
-	et "github.com/owasp-amass/amass/v5/engine/types"
 )
 
-// incSessionQueued tracks total queued items for a session across instances.
-func (p *pipelinePool) incSessionQueued(sid string, delta int64) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	p.sessionQueued[sid] += delta
-	if p.sessionQueued[sid] <= 0 {
-		delete(p.sessionQueued, sid)
-	}
-}
+const (
+	sessionMaxQueued     = int64(200)
+	sessionGrowThreshold = int64(100)
+)
 
 func (p *pipelinePool) activeSessionCountLocked() int {
 	if len(p.pendingSessions) == 0 && len(p.sessionQueued) == 0 {
@@ -89,16 +81,8 @@ func clampInt(v, lo, hi int) int {
 }
 
 // maybeAdjustFanout bumps fan-out for very heavy sessions.
-func (p *pipelinePool) maybeAdjustFanout(e *et.Event) {
-	sid := sessionIDOf(e)
-	if sid == "" {
-		return
-	}
-
-	const (
-		fanoutInterval       = 2 * time.Second
-		sessionGrowThreshold = int64(100)
-	)
+func (p *pipelinePool) maybeAdjustFanout(sid string) {
+	const fanoutInterval = 2 * time.Second
 
 	now := time.Now()
 	if now.Sub(p.lastFanout) < fanoutInterval {
