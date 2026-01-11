@@ -8,11 +8,6 @@ import (
 	"time"
 )
 
-const (
-	sessionMaxQueued     = int64(200)
-	sessionGrowThreshold = int64(100)
-)
-
 func (p *pipelinePool) activeSessionCountLocked() int {
 	if len(p.pendingSessions) == 0 && len(p.sessionQueued) == 0 {
 		return 0
@@ -34,7 +29,7 @@ func (p *pipelinePool) activeSessionCountLocked() int {
 	return len(set)
 }
 
-func (p *pipelinePool) recomputeBoundsLocked(totalQueued int64, avgQueued int64) {
+func (p *pipelinePool) recomputeBoundsLocked() {
 	const boundsInterval = 2 * time.Second
 
 	now := time.Now()
@@ -45,7 +40,7 @@ func (p *pipelinePool) recomputeBoundsLocked(totalQueued int64, avgQueued int64)
 
 	active := p.activeSessionCountLocked()
 	// If nothing is active, drift back toward baseline.
-	if active == 0 && totalQueued == 0 {
+	if active == 0 {
 		p.minInstances = p.baseMin
 		p.maxInstances = p.baseMax
 		return
@@ -74,23 +69,9 @@ func clampInt(v, lo, hi int) int {
 }
 
 // maybeAdjustFanout bumps fan-out for very heavy sessions.
-func (p *pipelinePool) maybeAdjustFanout(sid string) {
-	const fanoutInterval = 2 * time.Second
-
-	now := time.Now()
-	if now.Sub(p.lastFanout) < fanoutInterval {
-		return
-	}
-	p.lastFanout = now
-
+func (p *pipelinePool) maybeAdjustFanout() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-
-	queued := p.sessionQueued[sid]
-	if queued <= sessionGrowThreshold {
-		p.sessionFanout[sid] = 1
-		return
-	}
 
 	var scount int
 	for _, sess := range p.sessionQueued {
@@ -103,45 +84,43 @@ func (p *pipelinePool) maybeAdjustFanout(sid string) {
 	}
 
 	n := len(p.instances)
-	if n < scount {
-		// not enough instances to bother with fan-out
-		p.sessionFanout[sid] = 1
-		return
+	for sid, queued := range p.sessionQueued {
+		if n < scount || queued <= 0 {
+			// inactive, or not enough instances to bother with fan-out
+			p.sessionFanout[sid] = 1
+			continue
+		}
+		maxFanout := n / scount
+
+		fanout := p.sessionFanout[sid]
+		fanout = max(fanout, 1)
+
+		newFanout := fanout * 2
+		newFanout = min(newFanout, maxFanout)
+		if newFanout != fanout {
+			p.sessionFanout[sid] = newFanout
+
+			queued := p.sessionQueued[sid]
+			p.log.Info("adjusting session fan-out",
+				"atype", p.eventTy,
+				"session", sid,
+				"from", fanout,
+				"to", newFanout,
+				"queued", queued,
+			)
+		}
 	}
-	maxFanout := n / scount
-
-	fanout := p.sessionFanout[sid]
-	fanout = max(fanout, 1)
-
-	newFanout := fanout * 2
-	newFanout = min(newFanout, maxFanout)
-	p.sessionFanout[sid] = newFanout
-
-	p.log.Info("adjusting session fan-out",
-		"atype", p.eventTy,
-		"session", sid,
-		"from", fanout,
-		"to", newFanout,
-		"queued", queued,
-	)
 }
 
 // maybeScale still does global instance scaling based on overall queue sizes.
-func (p *pipelinePool) maybeScale() {
-	const (
-		scaleInterval   = 5 * time.Second
-		growThreshold   = 100
-		shrinkThreshold = 10
-	)
-
-	now := time.Now()
-	if now.Sub(p.lastScale) < scaleInterval {
-		return
-	}
-	p.lastScale = now
-
+func (p *pipelinePool) maybeScale() bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+
+	// adjust min/max based on active sessions
+	p.recomputeBoundsLocked()
+	// enforce dynamic min immediately
+	p.ensureMinInstancesLocked()
 
 	// compute load
 	var total int64
@@ -150,29 +129,13 @@ func (p *pipelinePool) maybeScale() {
 	}
 
 	n := len(p.instances)
-	var avg int64
-	if n > 0 {
-		avg = total / int64(n)
-	}
-
-	// adjust min/max based on current workload + active sessions
-	p.recomputeBoundsLocked(total, avg)
-
-	// enforce dynamic min immediately
-	for len(p.instances) < p.minInstances {
-		if p.createInstanceLocked() == nil {
-			break
-		}
-	}
-
-	n = len(p.instances)
 	if n == 0 {
-		return
+		return false
 	}
-	avg = total / int64(n)
+	avg := total / int64(n)
 
 	// Scale up (within dynamic max)
-	if avg > growThreshold && n < p.maxInstances {
+	if avg > instanceHighWater && n < p.maxInstances {
 		p.log.Info("scaling up pipeline pool",
 			"atype", p.eventTy,
 			"from", n,
@@ -183,11 +146,11 @@ func (p *pipelinePool) maybeScale() {
 			"max", p.maxInstances,
 		)
 		_ = p.createInstanceLocked()
-		return
+		return true
 	}
 
 	// Scale down (respect dynamic min)
-	if avg < shrinkThreshold && n > p.minInstances {
+	if avg < instanceLowWater && n > p.minInstances {
 		var count int
 		var best *pipelineInstance
 
@@ -195,13 +158,14 @@ func (p *pipelinePool) maybeScale() {
 			if inst.draining.Load() {
 				continue
 			}
+
 			count++
 			if best == nil || inst.queueLen() < best.queueLen() {
 				best = inst
 			}
 		}
 		if best == nil || count <= p.minInstances {
-			return
+			return false
 		}
 
 		best.ap.Queue.Drain()
@@ -214,5 +178,9 @@ func (p *pipelinePool) maybeScale() {
 				"id", best.id,
 			)
 		}
+
+		return true
 	}
+
+	return false
 }

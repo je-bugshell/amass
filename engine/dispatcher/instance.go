@@ -12,6 +12,12 @@ import (
 	oam "github.com/owasp-amass/open-asset-model"
 )
 
+const (
+	instanceLowWater  = int64(100)
+	instanceHighWater = int64(175)
+	instanceMaxQueued = int64(200)
+)
+
 var ErrBackpressure = fmt.Errorf("backpressure")
 
 type pipelineInstance struct {
@@ -42,8 +48,8 @@ func (p *pipelinePool) createInstanceLocked() *pipelineInstance {
 		id:        id,
 		atype:     p.eventTy,
 		ap:        ap,
-		maxQueued: 200,
-		lowWater:  100,
+		maxQueued: instanceMaxQueued,
+		lowWater:  instanceLowWater,
 	}
 	p.instances[id] = inst
 	p.ring.Add(id)

@@ -82,8 +82,14 @@ func (p *pipelinePool) ensureMinInstances() {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	p.ensureMinInstancesLocked()
+}
+
+func (p *pipelinePool) ensureMinInstancesLocked() {
 	for len(p.instances) < p.minInstances {
-		p.createInstanceLocked()
+		if p.createInstanceLocked() == nil {
+			break
+		}
 	}
 }
 
@@ -147,7 +153,7 @@ func (p *pipelinePool) pickInstance(shardKey string) *pipelineInstance {
 }
 
 func (p *pipelinePool) runPump() {
-	tick := time.NewTicker(250 * time.Millisecond)
+	tick := time.NewTicker(2 * time.Second)
 	defer tick.Stop()
 
 	for {
@@ -173,11 +179,6 @@ func (p *pipelinePool) pumpOnce() {
 	const perSessionBurst = 10
 
 	for _, sess := range sessions {
-		// check if this session work queue should have additional elements
-		if num := p.lenSessionWorkQueue(sess.ID().String()); num+perSessionBurst > int(sessionMaxQueued) {
-			continue
-		}
-
 		entities, err := sess.Backlog().ClaimNext(p.eventTy, perSessionBurst)
 		if err != nil || len(entities) == 0 {
 			p.clearPending(sess.ID().String())
@@ -205,21 +206,8 @@ func (p *pipelinePool) pumpOnce() {
 
 		if queued, _, _, err := sess.Backlog().Counts(p.eventTy); err == nil && queued == 0 {
 			p.clearPending(sess.ID().String())
-		} else if err == nil && queued > sessionGrowThreshold {
-			p.maybeAdjustFanout(sess.ID().String())
 		}
 	}
-}
-
-func (p *pipelinePool) lenSessionWorkQueue(sid string) int {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-
-	queued, ok := p.sessionQueued[sid]
-	if !ok {
-		return 0
-	}
-	return int(queued)
 }
 
 // snapshotPendingSessions returns a point-in-time list of session IDs that the pool
