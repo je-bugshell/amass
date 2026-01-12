@@ -32,10 +32,9 @@ type pipelinePool struct {
 	instances       map[string]*pipelineInstance // instanceID -> instance
 	ring            *hashRing                    // shardKey -> instanceID
 	// session fan-out and load tracking
-	sessionFanout   map[string]int   // sessionID -> fanout factor (1 = no fanout)
-	sessionQueued   map[string]int64 // sessionID -> queued count across all instances
-	pendingSessions map[string]et.Session
-	wake            chan struct{}
+	sessionFanout map[string]int   // sessionID -> fanout factor (1 = no fanout)
+	sessionQueued map[string]int64 // sessionID -> queued count across all instances
+	wake          chan struct{}
 }
 
 func newPipelinePool(dis *dynamicDispatcher, atype oam.AssetType, pmin, pmax int) *pipelinePool {
@@ -44,21 +43,20 @@ func newPipelinePool(dis *dynamicDispatcher, atype oam.AssetType, pmin, pmax int
 	hard := pmax * 2
 
 	p := &pipelinePool{
-		log:             dis.log,
-		dis:             dis,
-		reg:             dis.reg,
-		eventTy:         atype,
-		minInstances:    pmin,
-		maxInstances:    pmax,
-		baseMin:         pmin,
-		baseMax:         pmax,
-		hardMax:         hard,
-		instances:       make(map[string]*pipelineInstance),
-		ring:            newHashRing(50),
-		sessionFanout:   make(map[string]int),
-		sessionQueued:   make(map[string]int64),
-		pendingSessions: make(map[string]et.Session),
-		wake:            make(chan struct{}, 1),
+		log:           dis.log,
+		dis:           dis,
+		reg:           dis.reg,
+		eventTy:       atype,
+		minInstances:  pmin,
+		maxInstances:  pmax,
+		baseMin:       pmin,
+		baseMax:       pmax,
+		hardMax:       hard,
+		instances:     make(map[string]*pipelineInstance),
+		ring:          newHashRing(50),
+		sessionFanout: make(map[string]int),
+		sessionQueued: make(map[string]int64),
+		wake:          make(chan struct{}, 1),
 	}
 
 	p.ensureMinInstances()
@@ -68,15 +66,11 @@ func newPipelinePool(dis *dynamicDispatcher, atype oam.AssetType, pmin, pmax int
 
 // Dispatch wakes up the pump for admission.
 func (p *pipelinePool) Dispatch(e *et.Event) error {
-	// mark that this session/atype has backlog
-	p.notePending(e)
-
 	// decide whether to fill work queues
 	inst := p.pickInstance(p.workShardKey(e))
 	if inst != nil && inst.queueLen() <= instanceLowWater {
 		p.notifyCapacity()
 	}
-
 	return nil
 }
 
@@ -187,8 +181,7 @@ func (p *pipelinePool) pumpOnce() {
 
 	for _, sess := range sessions {
 		entities, err := sess.Backlog().ClaimNext(p.eventTy, perSessionBurst)
-		if err != nil || len(entities) == 0 {
-			p.clearPending(sess.ID().String())
+		if err != nil {
 			continue
 		}
 
@@ -210,10 +203,6 @@ func (p *pipelinePool) pumpOnce() {
 				_ = sess.Backlog().Release(ent, p.eventTy, false)
 			}
 		}
-
-		if queued, _, _, err := sess.Backlog().Counts(p.eventTy); err == nil && queued == 0 {
-			p.clearPending(sess.ID().String())
-		}
 	}
 }
 
@@ -230,44 +219,19 @@ func (p *pipelinePool) hasCapacity(num int64) bool {
 }
 
 // snapshotPendingSessions returns a point-in-time list of session IDs that the pool
-// believes have pending work in the durable queue (or were previously blocked by
-// backpressure). The returned slice is safe to iterate without holding p.mu.
+// believes have pending work in the backlog (or were previously blocked by
+// backpressure). The returned slice is safe to iterate without holding the mutex.
 func (p *pipelinePool) snapshotPendingSessions() []et.Session {
-	p.RLock()
-	defer p.RUnlock()
+	sessions := p.dis.mgr.GetSessions()
 
-	if len(p.pendingSessions) == 0 {
-		return nil
+	pending := make([]et.Session, 0, len(sessions))
+	for _, sess := range sessions {
+		if queued, _, _, err := sess.Backlog().Counts(p.eventTy); err == nil && queued > 0 {
+			pending = append(pending, sess)
+		}
 	}
 
-	sessions := make([]et.Session, 0, len(p.pendingSessions))
-	for _, sess := range p.pendingSessions {
-		sessions = append(sessions, sess)
-	}
-
-	return sessions
-}
-
-// clearPendingIfEmpty removes sid from pendingSessions.
-func (p *pipelinePool) clearPending(sid string) {
-	if sid == "" {
-		return
-	}
-
-	p.Lock()
-	delete(p.pendingSessions, sid)
-	p.Unlock()
-}
-
-func (p *pipelinePool) notePending(e *et.Event) {
-	sid := sessionIDOf(e)
-	if sid == "" {
-		return
-	}
-
-	p.Lock()
-	p.pendingSessions[sid] = e.Session
-	p.Unlock()
+	return pending
 }
 
 func (p *pipelinePool) notifyCapacity() {

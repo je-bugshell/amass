@@ -105,11 +105,6 @@ func (pi *pipelineInstance) onDequeue(e *et.Event) {
 	}
 
 	qlen := pi.queued.Add(-1)
-	// Wake the pool pump when we are below lowWater
-	if qlen <= pi.lowWater {
-		pi.parent.notifyCapacity()
-	}
-
 	if pi.draining.Load() && qlen == 0 {
 		pi.parent.Lock()
 		defer pi.parent.Unlock()
@@ -119,6 +114,12 @@ func (pi *pipelineInstance) onDequeue(e *et.Event) {
 			"atype", pi.parent.eventTy,
 			"id", pi.id,
 		)
+		return
+	}
+
+	// Wake the pool pump when we are below lowWater
+	if qlen <= pi.lowWater {
+		pi.parent.notifyCapacity()
 	}
 }
 

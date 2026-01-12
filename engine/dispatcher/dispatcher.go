@@ -80,12 +80,7 @@ func (d *dynamicDispatcher) runEvents() {
 	}
 }
 
-func (d *dynamicDispatcher) completedCallback(data any) {
-	ede, ok := data.(*et.EventDataElement)
-	if !ok {
-		return
-	}
-
+func (d *dynamicDispatcher) completedCallback(ede *et.EventDataElement) {
 	// ack the completion in the backlog
 	_ = ede.Event.Session.Backlog().Ack(ede.Event.Entity, false)
 

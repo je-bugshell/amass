@@ -5,14 +5,16 @@
 package dispatcher
 
 func (p *pipelinePool) activeSessionCountLocked() int {
-	if len(p.pendingSessions) == 0 && len(p.sessionQueued) == 0 {
+	pending := p.snapshotPendingSessions()
+
+	if len(pending) == 0 && len(p.sessionQueued) == 0 {
 		return 0
 	}
 
-	set := make(map[string]struct{},
-		len(p.pendingSessions)+len(p.sessionQueued))
+	set := make(map[string]struct{}, len(pending)+len(p.sessionQueued))
 
-	for sid := range p.pendingSessions {
+	for _, sess := range pending {
+		sid := sess.ID().String()
 		set[sid] = struct{}{}
 	}
 
