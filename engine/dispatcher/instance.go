@@ -102,7 +102,7 @@ func (pi *pipelineInstance) onDequeue() {
 	}
 
 	// Wake the pool pump when we are below lowWater
-	if qlen <= pi.parent.limits.LowWater {
+	if pi.queueLen() <= pi.parent.limits.LowWater {
 		pi.parent.notifyCapacity()
 	}
 }
