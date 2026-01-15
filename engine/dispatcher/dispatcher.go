@@ -25,6 +25,7 @@ type dynamicDispatcher struct {
 	cqueue queue.Queue
 	cchan  chan *et.EventDataElement
 	pools  map[oam.AssetType]*pipelinePool
+	meta   *metaMap
 }
 
 func NewDispatcher(l *slog.Logger, r et.Registry, mgr et.SessionManager) et.Dispatcher {
@@ -36,9 +37,11 @@ func NewDispatcher(l *slog.Logger, r et.Registry, mgr et.SessionManager) et.Disp
 		cchan:  make(chan *et.EventDataElement, 1000),
 		cqueue: queue.NewQueue(),
 		pools:  make(map[oam.AssetType]*pipelinePool),
+		meta:   newMetaMap(),
 	}
 
 	go d.runEvents()
+	go d.updateMetaMap()
 	return d
 }
 
@@ -85,7 +88,9 @@ func (d *dynamicDispatcher) runEvents() {
 
 func (d *dynamicDispatcher) completedCallback(ede *et.EventDataElement) {
 	// ack the completion in the backlog
-	_ = ede.Event.Session.Backlog().Ack(ede.Event.Entity, false)
+	if err := ede.Event.Session.Backlog().Ack(ede.Event.Entity, false); err == nil {
+		_ = d.meta.DeleteSessionEntry(ede.Event.Session.ID().String(), ede.Event.Entity.ID)
+	}
 
 	if inst, ok := ede.Ref.(*pipelineInstance); ok {
 		inst.onDequeue()
@@ -104,6 +109,10 @@ func (d *dynamicDispatcher) DispatchEvent(e *et.Event) error {
 	// do not schedule the same asset more than once
 	if e.Session.Backlog().Has(e.Entity) {
 		return nil
+	}
+
+	if err := d.meta.InsertEntry(e.Session.ID().String(), e.Entity.ID, e.Meta); err != nil {
+		return err
 	}
 
 	err := e.Session.Backlog().Enqueue(e.Entity)
@@ -182,4 +191,32 @@ func (d *dynamicDispatcher) snapshotSessBacklogStats(atype oam.AssetType) (sessS
 		return nil, errors.New("failed to acquire the stats")
 	}
 	return stats, nil
+}
+
+func (d *dynamicDispatcher) updateMetaMap() {
+	tick := time.NewTicker(2 * time.Second)
+	defer tick.Stop()
+
+	for {
+		select {
+		case <-d.done:
+			return
+		case <-tick.C:
+			d.removeKilledSessions()
+		}
+	}
+}
+
+func (d *dynamicDispatcher) removeKilledSessions() {
+	sessions := d.mgr.GetSessions()
+	if len(sessions) == 0 {
+		return
+	}
+
+	var sids []string
+	for _, sess := range sessions {
+		sids = append(sids, sess.ID().String())
+	}
+
+	d.meta.RemoveInactiveSessions(sids)
 }

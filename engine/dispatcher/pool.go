@@ -214,10 +214,12 @@ func (p *pipelinePool) pumpOnce() {
 		for _, ent := range entities {
 			a := ent.Asset
 			name := string(a.AssetType()) + ": " + a.Key()
+			meta, _ := p.dis.meta.GetEntry(sess, ent.ID)
 
 			event := &et.Event{
 				Name:       name,
 				Entity:     ent,
+				Meta:       meta,
 				Dispatcher: p.dis,
 				Session:    s.Session,
 			}
