@@ -1,6 +1,6 @@
 //go:build !cgo
 
-// Copyright © by Jeff Foley 2017-2025. All rights reserved.
+// Copyright © by Jeff Foley 2017-2026. All rights reserved.
 // Use of this source code is governed by Apache 2 LICENSE that can be found in the LICENSE file.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -10,7 +10,6 @@ import (
 	"context"
 	"encoding/json"
 	"os"
-	"time"
 
 	"github.com/owasp-amass/amass/v5/internal/net/http"
 )
@@ -50,11 +49,11 @@ func getDefaultParserOptions() ParserOptions {
 	}
 }
 
-func ParseAddress(address string) ([]ParsedComponent, error) {
-	return ParseAddressOptions(address, parserDefaultOptions)
+func ParseAddress(ctx context.Context, address string) ([]ParsedComponent, error) {
+	return ParseAddressOptions(ctx, address, parserDefaultOptions)
 }
 
-func ParseAddressOptions(address string, options ParserOptions) ([]ParsedComponent, error) {
+func ParseAddressOptions(ctx context.Context, address string, options ParserOptions) ([]ParsedComponent, error) {
 	req := parseRequest{
 		Address:  address,
 		Language: options.Language,
@@ -65,9 +64,6 @@ func ParseAddressOptions(address string, options ParserOptions) ([]ParsedCompone
 	if err != nil {
 		return nil, err
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
 
 	resp, err := http.RequestWebPage(ctx, &http.Request{
 		Method: "POST",
