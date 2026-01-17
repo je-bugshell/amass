@@ -25,7 +25,7 @@ require (
 	github.com/miekg/dns v1.1.70
 	github.com/nyaruka/phonenumbers v1.6.8
 	github.com/openrdap/rdap v0.9.1
-	github.com/owasp-amass/asset-db v0.23.2-0.20260109005046-5c345c7e748a
+	github.com/owasp-amass/asset-db v0.23.2-0.20260117065956-5ed3079b28e1
 	github.com/owasp-amass/open-asset-model v0.15.0
 	github.com/owasp-amass/resolve v0.9.7-0.20260114031035-c1e9ccd12e45
 	github.com/samber/slog-common v0.19.0
@@ -36,7 +36,7 @@ require (
 	golang.org/x/net v0.49.0
 	golang.org/x/time v0.14.0
 	gopkg.in/yaml.v3 v3.0.1
-	modernc.org/sqlite v1.44.0
+	modernc.org/sqlite v1.44.1
 	mvdan.cc/xurls/v2 v2.6.0
 )
 
@@ -72,7 +72,7 @@ require (
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/pgx/v5 v5.8.0 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
-	github.com/klauspost/compress v1.18.2 // indirect
+	github.com/klauspost/compress v1.18.3 // indirect
 	github.com/klauspost/cpuid/v2 v2.3.0 // indirect
 	github.com/likexian/gokit v0.25.16 // indirect
 	github.com/mattn/go-colorable v0.1.14 // indirect
@@ -83,7 +83,7 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/neo4j/neo4j-go-driver/v5 v5.28.4 // indirect
-	github.com/pierrec/lz4/v4 v4.1.23 // indirect
+	github.com/pierrec/lz4/v4 v4.1.24 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_golang v1.23.2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
@@ -101,15 +101,15 @@ require (
 	golang.org/x/mod v0.32.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.40.0 // indirect
-	golang.org/x/telemetry v0.0.0-20260109210033-bd525da824e2 // indirect
+	golang.org/x/telemetry v0.0.0-20260116145544-c6413dc483f5 // indirect
 	golang.org/x/text v0.33.0 // indirect
 	golang.org/x/tools v0.41.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260112192933-99fd39fd28a9 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260114163908-3f89685c29c3 // indirect
 	google.golang.org/grpc v1.78.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gorm.io/gorm v1.31.1 // indirect
-	modernc.org/libc v1.67.4 // indirect
+	modernc.org/libc v1.67.6 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
