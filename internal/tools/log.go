@@ -37,6 +37,7 @@ func WriteLogMessage(l *slog.Logger, message string) {
 }
 
 func channelJSONLog(data string) string {
+	fmt.Println(data)
 	j := make(map[string]interface{})
 	if err := json.Unmarshal([]byte(data), &j); err != nil {
 		return ""
