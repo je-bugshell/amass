@@ -239,7 +239,7 @@ func (h *horizPlugin) ipPTRTargetsInScope(ctx context.Context, e *et.Event, nb *
 						if dom, err := publicsuffix.EffectiveTLDPlusOne(to.Asset.Key()); err == nil {
 							if e.Session.Scope().AddDomain(dom) {
 								h.submitFQDN(e, dom)
-								h.log.Info(fmt.Sprintf("[%s: %s] was added to the session scope", "FQDN", dom))
+								e.Session.Log().Info(fmt.Sprintf("[%s: %s] was added to the session scope", "FQDN", dom))
 							}
 						}
 					}

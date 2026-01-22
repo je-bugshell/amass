@@ -54,7 +54,7 @@ func (h *horContact) check(e *et.Event) error {
 
 		for _, assoc := range assocs {
 			if assoc.ScopeChange {
-				h.plugin.log.Info(assoc.Rationale)
+				e.Session.Log().Info(assoc.Rationale)
 				impacted = append(impacted, assoc.ImpactedAssets...)
 			}
 		}

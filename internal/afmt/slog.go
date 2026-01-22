@@ -1,4 +1,4 @@
-// Copyright © by Jeff Foley 2025. All rights reserved.
+// Copyright © by Jeff Foley 2017-2026. All rights reserved.
 // Use of this source code is governed by Apache 2 LICENSE that can be found in the LICENSE file.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -20,10 +20,13 @@ func JSONLogToRecord(logstr string) (slog.Record, error) {
 		return slog.Record{}, errors.New("failed to unmarchal the JSON")
 	}
 
-	var ltime time.Time
-	// cheating right now by replacing the time
-	if _, found := j[slog.TimeKey]; found {
-		ltime = time.Now()
+	ltime := time.Now()
+	if timeVal, found := j[slog.TimeKey]; found {
+		if timestr, valid := timeVal.(string); valid {
+			if t, err := time.Parse("2006-01-02T15:04:05.000000000Z", timestr); err == nil {
+				ltime = t
+			}
+		}
 	}
 	delete(j, slog.TimeKey)
 

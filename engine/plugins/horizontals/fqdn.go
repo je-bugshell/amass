@@ -81,7 +81,7 @@ func (h *horfqdn) check(e *et.Event) error {
 
 		for _, assoc := range assocs {
 			if assoc.ScopeChange {
-				h.plugin.log.Info(assoc.Rationale)
+				e.Session.Log().Info(assoc.Rationale)
 				impacted = append(impacted, assoc.ImpactedAssets...)
 			}
 		}
@@ -133,7 +133,7 @@ func (h *horfqdn) checkPTR(e *et.Event, edges []*dbt.Edge, fqdn *dbt.Entity, sin
 				if inscope {
 					if dom, err := publicsuffix.EffectiveTLDPlusOne(to.Asset.Key()); err == nil && dom != "" {
 						if e.Session.Scope().AddDomain(dom) {
-							h.plugin.log.Info(fmt.Sprintf("[%s: %s] was added to the session scope", "FQDN", dom))
+							e.Session.Log().Info(fmt.Sprintf("[%s: %s] was added to the session scope", "FQDN", dom))
 						}
 						h.plugin.submitFQDN(e, dom)
 					}
@@ -145,7 +145,7 @@ func (h *horfqdn) checkPTR(e *et.Event, edges []*dbt.Edge, fqdn *dbt.Entity, sin
 						}
 						h.plugin.submitIPAddresses(e, ip, h.plugin.source)
 						support.IPAddressSweep(e, ip, h.plugin.source, size, h.plugin.submitIPAddresses)
-						h.plugin.log.Info(fmt.Sprintf("[%s: %s] was added to the session scope", ip.AssetType(), ip.Key()))
+						e.Session.Log().Info(fmt.Sprintf("[%s: %s] was added to the session scope", ip.AssetType(), ip.Key()))
 					}
 				}
 			}

@@ -1,4 +1,4 @@
-// Copyright © by Jeff Foley 2017-2025. All rights reserved.
+// Copyright © by Jeff Foley 2017-2026. All rights reserved.
 // Use of this source code is governed by Apache 2 LICENSE that can be found in the LICENSE file.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -6,7 +6,6 @@ package tools
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net"
@@ -20,12 +19,7 @@ import (
 )
 
 func WriteLogMessage(l *slog.Logger, message string) {
-	logstr := channelJSONLog(message)
-	if logstr == "" {
-		return
-	}
-
-	record, err := afmt.JSONLogToRecord(logstr)
+	record, err := afmt.JSONLogToRecord(message)
 	if err != nil {
 		return
 	}
@@ -34,31 +28,6 @@ func WriteLogMessage(l *slog.Logger, message string) {
 	if l.Handler().Enabled(ctx, record.Level) {
 		_ = l.Handler().Handle(ctx, record)
 	}
-}
-
-func channelJSONLog(data string) string {
-	fmt.Println(data)
-	j := make(map[string]interface{})
-	if err := json.Unmarshal([]byte(data), &j); err != nil {
-		return ""
-	}
-
-	var logstr string
-	// check that this is a log message sent over the sub channel
-	if p, found := j["payload"]; !found {
-		return ""
-	} else if pmap, ok := p.(map[string]interface{}); !ok {
-		return ""
-	} else if d, found := pmap["data"]; !found {
-		return ""
-	} else if dmap, ok := d.(map[string]interface{}); !ok {
-		return ""
-	} else if lm, found := dmap["logMessages"]; !found {
-		return ""
-	} else if lmstr, ok := lm.(string); ok {
-		logstr = lmstr
-	}
-	return logstr
 }
 
 func NewFileLogger(dir, logfile string) (*slog.Logger, error) {
