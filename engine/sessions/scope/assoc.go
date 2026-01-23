@@ -334,6 +334,8 @@ func (s *Scope) towardsAssetsWithAssociation(c repository.Repository, asset *dbt
 	case oam.Netblock:
 		out = true
 		outRels = append(outRels, "registration")
+		in = true
+		inRels = append(inRels, "announces")
 	case oam.AutonomousSystem:
 		out = true
 		outRels = append(outRels, "registration")

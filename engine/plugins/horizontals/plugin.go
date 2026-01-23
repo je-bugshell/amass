@@ -32,6 +32,7 @@ type horizPlugin struct {
 	name       string
 	log        *slog.Logger
 	horfqdn    *horfqdn
+	horaddr    *horaddr
 	horContact *horContact
 	source     *et.Source
 }
@@ -65,6 +66,22 @@ func (h *horizPlugin) Start(r et.Registry) error {
 		Transforms:   []string{string(oam.FQDN)},
 		EventType:    oam.FQDN,
 		Callback:     h.horfqdn.check,
+	}); err != nil {
+		return err
+	}
+
+	h.horaddr = &horaddr{
+		name:   h.name + "-IPAddress-Handler",
+		plugin: h,
+	}
+	if err := r.RegisterHandler(&et.Handler{
+		Plugin:       h,
+		Name:         h.horaddr.name,
+		Position:     10,
+		MaxInstances: support.MaxHandlerInstances,
+		Transforms:   []string{string(oam.IPAddress)},
+		EventType:    oam.IPAddress,
+		Callback:     h.horaddr.check,
 	}); err != nil {
 		return err
 	}
@@ -262,7 +279,7 @@ func (h *horizPlugin) sweepAroundIPs(ctx context.Context, e *et.Event, nb *dbt.E
 				continue
 			}
 			if ip, ok := to.Asset.(*oamnet.IPAddress); ok {
-				support.IPAddressSweep(e, ip, h.source, size, h.submitIPAddresses)
+				support.IPAddressSweep(e, ip, h.source, size, h.submitIPAddress)
 			}
 		}
 	}

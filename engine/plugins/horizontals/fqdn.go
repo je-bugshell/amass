@@ -7,10 +7,8 @@ package horizontals
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
-	"github.com/miekg/dns"
 	"github.com/owasp-amass/amass/v5/engine/plugins/support"
 	"github.com/owasp-amass/amass/v5/engine/sessions/scope"
 	et "github.com/owasp-amass/amass/v5/engine/types"
@@ -18,8 +16,6 @@ import (
 	oam "github.com/owasp-amass/open-asset-model"
 	oamdns "github.com/owasp-amass/open-asset-model/dns"
 	"github.com/owasp-amass/open-asset-model/general"
-	oamnet "github.com/owasp-amass/open-asset-model/network"
-	"golang.org/x/net/publicsuffix"
 )
 
 type horfqdn struct {
@@ -37,27 +33,12 @@ func (h *horfqdn) check(e *et.Event) error {
 		return errors.New("failed to extract the FQDN asset")
 	}
 
+	if _, conf := e.Session.Scope().IsAssetInScope(fqdn, 0); conf > 0 {
+		return nil
+	}
+
 	since, err := support.TTLStartTime(e.Session.Config(), string(oam.FQDN), string(oam.FQDN), h.plugin.name)
 	if err != nil {
-		return nil
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	var ptrs []*dbt.Edge
-	if edges, err := e.Session.DB().OutgoingEdges(ctx, e.Entity, since, "dns_record"); err == nil {
-		for _, edge := range edges {
-			if rel, ok := edge.Relation.(*oamdns.BasicDNSRelation); ok && rel.Header.RRType == 12 {
-				ptrs = append(ptrs, edge)
-			}
-		}
-	}
-	if len(ptrs) == 0 && !support.HasDNSRecordType(e, int(dns.TypeA)) &&
-		!support.HasDNSRecordType(e, int(dns.TypeAAAA)) && !support.HasDNSRecordType(e, int(dns.TypeCNAME)) {
-		return nil
-	}
-	if _, conf := e.Session.Scope().IsAssetInScope(fqdn, 0); conf > 0 {
 		return nil
 	}
 
@@ -69,11 +50,6 @@ func (h *horfqdn) check(e *et.Event) error {
 	conf := matches.Confidence(h.plugin.name)
 	if conf == -1 {
 		conf = matches.Confidence(string(oam.FQDN))
-	}
-
-	if len(ptrs) > 0 {
-		h.checkPTR(e, ptrs, e.Entity, since)
-		return nil
 	}
 
 	if assocs := h.lookup(e, e.Entity, conf); len(assocs) > 0 {
@@ -88,6 +64,9 @@ func (h *horfqdn) check(e *et.Event) error {
 
 		var assets []*dbt.Entity
 		for _, im := range impacted {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+
 			if ents, err := e.Session.DB().FindEntitiesByContent(ctx,
 				im.Asset.AssetType(), since, 1, assetToContentFilters(im.Asset)); err == nil {
 				assets = append(assets, ents[0])
@@ -102,56 +81,6 @@ func (h *horfqdn) check(e *et.Event) error {
 		}
 	}
 	return nil
-}
-
-func (h *horfqdn) checkPTR(e *et.Event, edges []*dbt.Edge, fqdn *dbt.Entity, since time.Time) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	if ins, err := e.Session.DB().IncomingEdges(ctx, fqdn, since, "ptr_record"); err == nil && len(ins) > 0 {
-		for _, r := range ins {
-			from, err := e.Session.DB().FindEntityById(ctx, r.FromEntity.ID)
-			if err != nil {
-				continue
-			}
-			ip, ok := from.Asset.(*oamnet.IPAddress)
-			if !ok {
-				continue
-			}
-
-			var inscope bool
-			_, conf := e.Session.Scope().IsAssetInScope(ip, 0)
-			if conf > 0 {
-				inscope = true
-			}
-
-			for _, edge := range edges {
-				// acquire the FQDN asset that represents the IP address (a.k.a. the pointer record)
-				to, err := e.Session.DB().FindEntityById(ctx, edge.ToEntity.ID)
-				if err != nil {
-					continue
-				}
-				if inscope {
-					if dom, err := publicsuffix.EffectiveTLDPlusOne(to.Asset.Key()); err == nil && dom != "" {
-						if e.Session.Scope().AddDomain(dom) {
-							e.Session.Log().Info(fmt.Sprintf("[%s: %s] was added to the session scope", "FQDN", dom))
-						}
-						h.plugin.submitFQDN(e, dom)
-					}
-				} else if _, conf := e.Session.Scope().IsAssetInScope(to.Asset, 0); conf > 0 {
-					if e.Session.Scope().Add(ip) {
-						size := 100
-						if e.Session.Config().Active {
-							size = 250
-						}
-						h.plugin.submitIPAddress(e, ip, h.plugin.source)
-						support.IPAddressSweep(e, ip, h.plugin.source, size, h.plugin.submitIPAddresses)
-						e.Session.Log().Info(fmt.Sprintf("[%s: %s] was added to the session scope", ip.AssetType(), ip.Key()))
-					}
-				}
-			}
-		}
-	}
 }
 
 func (h *horfqdn) lookup(e *et.Event, asset *dbt.Entity, conf int) []*scope.Association {
