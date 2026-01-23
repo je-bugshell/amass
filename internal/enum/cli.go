@@ -464,7 +464,7 @@ func printScope(c *client.Client, token uuid.UUID) {
 			continue
 		}
 
-		fmt.Printf("%s:\n\n", atype)
+		fmt.Println(atype)
 		for _, a := range assets {
 			fmt.Println(a.Key())
 		}
