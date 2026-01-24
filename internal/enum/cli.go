@@ -298,7 +298,7 @@ func CLIWorkflow(cmdName string, clArgs []string) {
 
 	if !args.Options.Silent {
 		progress.Finish()
-		fmt.Printf("\nSession Scope\n\n")
+		fmt.Printf("\nSession Scope\n")
 		printScope(c, token)
 	}
 }
@@ -464,7 +464,7 @@ func printScope(c *client.Client, token uuid.UUID) {
 			continue
 		}
 
-		fmt.Println(atype)
+		fmt.Printf("\n%s:\n\n", atype)
 		for _, a := range assets {
 			fmt.Println(a.Key())
 		}
