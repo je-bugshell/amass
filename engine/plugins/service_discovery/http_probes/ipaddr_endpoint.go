@@ -49,7 +49,7 @@ func (r *ipaddrEndpoint) check(e *et.Event) error {
 	}
 
 	since, err := support.TTLStartTime(e.Session.Config(), string(oam.IPAddress), string(oam.Service), r.name)
-	if err != nil {
+	if err != nil || since.IsZero() {
 		return err
 	}
 
