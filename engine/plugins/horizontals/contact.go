@@ -7,11 +7,9 @@ package horizontals
 import (
 	"errors"
 
-	"github.com/owasp-amass/amass/v5/engine/plugins/support"
 	et "github.com/owasp-amass/amass/v5/engine/types"
 	dbt "github.com/owasp-amass/asset-db/types"
-	oam "github.com/owasp-amass/open-asset-model"
-	"github.com/owasp-amass/open-asset-model/contact"
+	oamcon "github.com/owasp-amass/open-asset-model/contact"
 )
 
 type horContact struct {
@@ -24,52 +22,40 @@ func (h *horContact) Name() string {
 }
 
 func (h *horContact) check(e *et.Event) error {
-	_, ok := e.Entity.Asset.(*contact.ContactRecord)
+	_, ok := e.Entity.Asset.(*oamcon.ContactRecord)
 	if !ok {
 		return errors.New("failed to extract the ContactRecord asset")
 	}
 
-	matches, err := e.Session.Config().CheckTransformations(
-		string(oam.ContactRecord), string(oam.ContactRecord), h.plugin.name)
-	if err != nil || matches.Len() == 0 {
-		return nil
-	}
-
-	conf := matches.Confidence(h.plugin.name)
-	if conf == -1 {
-		conf = matches.Confidence(string(oam.ContactRecord))
-	}
-	if conf == -1 {
-		return nil
-	}
-
-	since, err := support.TTLStartTime(e.Session.Config(),
-		string(oam.ContactRecord), string(oam.ContactRecord), h.plugin.name)
-	if err != nil {
-		return nil
-	}
-
-	if assocs := h.lookup(e, e.Entity, conf); len(assocs) > 0 {
-		var impacted []*dbt.Entity
-
-		for _, assoc := range assocs {
-			if assoc.ScopeChange {
-				e.Session.Log().Info(assoc.Rationale)
-				impacted = append(impacted, assoc.ImpactedAssets...)
+	if ents, err := h.plugin.getContactRecordLocations(e, e.Entity); err == nil && len(ents) > 0 {
+		for _, ent := range ents {
+			if assocs := h.lookup(e, ent); len(assocs) > 0 {
+				for _, assoc := range assocs {
+					if assoc.ScopeChange {
+						e.Session.Log().Info(assoc.Rationale)
+					}
+				}
 			}
 		}
+	}
 
-		if len(impacted) > 0 {
-			h.plugin.process(e, since, impacted)
+	if ents, err := h.plugin.getContactRecordOrganizations(e, e.Entity); err == nil && len(ents) > 0 {
+		for _, ent := range ents {
+			if assocs := h.lookup(e, ent); len(assocs) > 0 {
+				for _, assoc := range assocs {
+					if assoc.ScopeChange {
+						e.Session.Log().Info(assoc.Rationale)
+					}
+				}
+			}
 		}
 	}
 	return nil
 }
 
-func (h *horContact) lookup(e *et.Event, asset *dbt.Entity, conf int) []*et.Association {
+func (h *horContact) lookup(e *et.Event, asset *dbt.Entity) []*et.Association {
 	assocs, err := e.Session.Scope().IsAssociated(&et.Association{
 		Submission:  asset,
-		Confidence:  conf,
 		ScopeChange: true,
 	})
 	if err != nil {

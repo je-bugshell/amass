@@ -42,12 +42,12 @@ type Session interface {
 }
 
 type Association struct {
-	Submission     *dbt.Entity
-	Match          *dbt.Entity
-	Rationale      string
-	Confidence     int
-	ScopeChange    bool
-	ImpactedAssets []*dbt.Entity
+	Submission  *dbt.Entity
+	ScopeChange bool
+	BestMatch   *dbt.Entity
+	Evidence    []*dbt.Entity
+	Rationale   string
+	Confidence  int
 }
 
 type Scope interface {

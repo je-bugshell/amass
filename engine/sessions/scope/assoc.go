@@ -26,7 +26,7 @@ import (
 )
 
 func (s *Scope) IsAssociated(req *et.Association) ([]*et.Association, error) {
-	if req == nil || req.Submission == nil || req.Submission.Asset == nil || req.Confidence < 0 || req.Confidence > 100 {
+	if req == nil || req.Submission == nil || req.Submission.Asset == nil {
 		return nil, errors.New("invalid request")
 	}
 	if atype := req.Submission.Asset.AssetType(); atype != oam.FQDN &&
@@ -40,21 +40,19 @@ func (s *Scope) IsAssociated(req *et.Association) ([]*et.Association, error) {
 	results := s.checkRelatedAssetsforAssoc(req, assocs)
 
 	if req.ScopeChange {
-		// add all assets related to the asset found to be associated
+		var conf int
+		var best *et.Association
+
 		for _, result := range results {
-			var impacted []*dbt.Entity
-
-			for _, im := range append(result.ImpactedAssets, result.Match) {
-				if s.Add(im.Asset) {
-					impacted = append(impacted, im)
-				}
+			if result.BestMatch != nil && result.Confidence > conf {
+				best = result
+				conf = result.Confidence
 			}
+		}
 
-			result.ImpactedAssets = impacted
-			if len(result.ImpactedAssets) > 0 {
-				result.ScopeChange = true
-				s.addScopeChangesToRationale(result)
-			}
+		if best != nil && s.Add(req.Submission.Asset) {
+			best.ScopeChange = true
+			s.addScopeChangesToRationale(best)
 		}
 	}
 
@@ -67,8 +65,8 @@ func (s *Scope) IsAssociated(req *et.Association) ([]*et.Association, error) {
 func (s *Scope) addScopeChangesToRationale(result *et.Association) {
 	var changes []string
 
-	for _, im := range result.ImpactedAssets {
-		changes = append(changes, fmt.Sprintf("[%s: %s]", im.Asset.AssetType(), im.Asset.Key()))
+	for _, match := range []*dbt.Entity{result.BestMatch} {
+		changes = append(changes, fmt.Sprintf("[%s: %s]", match.Asset.AssetType(), match.Asset.Key()))
 	}
 
 	result.Rationale += ". The following assets were added to the session scope: " + strings.Join(changes, ", ")
@@ -80,39 +78,65 @@ func (s *Scope) checkRelatedAssetsforAssoc(req *et.Association, assocs []*dbt.En
 	for _, assoc := range assocs {
 		var best int
 		var msg string
+		var match oam.Asset
 
-		var impacted []*dbt.Entity
+		var evidence []*dbt.Entity
 		for _, asset := range append(s.assetsRelatedToAssetWithAssoc(assoc), assoc) {
-			if req.ScopeChange {
-				impacted = append(impacted, asset)
-			}
-
 			atype := asset.Asset.AssetType()
 			rconf := s.confidence(atype, atype)
-			if match, conf := s.IsAssetInScope(asset.Asset, rconf); conf > 0 {
+
+			if m, conf := s.IsAssetInScope(asset.Asset, rconf); conf > 0 {
+				evidence = append(evidence, asset)
+
 				if conf > best {
+					match = m
 					best = conf
 
 					aa := assoc.Asset
 					sa := req.Submission.Asset
 					msg = fmt.Sprintf("[%s: %s] is related to an asset with associative value [%s: %s], ", sa.AssetType(), sa.Key(), aa.AssetType(), aa.Key())
 					msg += fmt.Sprintf("which has a related asset [%s: %s] that is in scope: matches [%s: %s] at a confidence of %d out of 100",
-						asset.Asset.AssetType(), asset.Asset.Key(), match.AssetType(), match.Key(), conf)
+						asset.Asset.AssetType(), asset.Asset.Key(), m.AssetType(), m.Key(), conf)
 				}
 			}
 		}
 
 		if best > 0 {
-			results = append(results, &et.Association{
-				Submission:     req.Submission,
-				Match:          assoc,
-				Rationale:      msg,
-				Confidence:     best,
-				ImpactedAssets: impacted,
-			})
+			if ment, err := s.getMatchEntity(match); err == nil && ment != nil {
+				results = append(results, &et.Association{
+					Submission: req.Submission,
+					BestMatch:  ment,
+					Evidence:   evidence,
+					Rationale:  msg,
+					Confidence: best,
+				})
+			}
 		}
 	}
 	return results
+}
+
+func (s *Scope) getMatchEntity(masset oam.Asset) (*dbt.Entity, error) {
+	since := s.ttlStartTime(masset.AssetType(), masset.AssetType())
+
+	ctx, cancel := context.WithTimeout(s.Session.Ctx(), 5*time.Second)
+	defer cancel()
+
+	filters := make(dbt.ContentFilters)
+	switch masset.AssetType() {
+	case oam.FQDN:
+		filters["name"] = masset.Key()
+	case oam.Location:
+		filters["address"] = masset.Key()
+	case oam.Organization:
+		filters["unique_id"] = masset.Key()
+	}
+
+	ents, err := s.Session.DB().FindEntitiesByContent(ctx, masset.AssetType(), since, 1, filters)
+	if err != nil || len(ents) != 1 {
+		return nil, err
+	}
+	return ents[0], nil
 }
 
 func (s *Scope) assetsRelatedToAssetWithAssoc(assoc *dbt.Entity) []*dbt.Entity {
@@ -133,7 +157,7 @@ func (s *Scope) assetsRelatedToAssetWithAssoc(assoc *dbt.Entity) []*dbt.Entity {
 				results = append(results, a)
 			case *oamorg.Organization:
 				found = true
-				if cert, ok := assoc.Asset.(*oamcert.TLSCertificate); !ok || s.orgNameSimilarToCommon(v, cert) {
+				if cert, found := assoc.Asset.(*oamcert.TLSCertificate); !found || s.orgNameSimilarToCommon(v, cert) {
 					results = append(results, a)
 				}
 			case *oamcon.Location:

@@ -76,7 +76,7 @@ func (w *whois) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       w,
 		Name:         w.domrec.name,
-		Position:     10,
+		Position:     2,
 		MaxInstances: support.MidHandlerInstances,
 		Transforms:   w.domrec.transforms,
 		EventType:    oam.DomainRecord,

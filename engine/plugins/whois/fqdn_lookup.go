@@ -86,7 +86,7 @@ func (r *fqdnLookup) store(e *et.Event, resp string, asset *dbt.Entity, src *et.
 	fqdn := asset.Asset.(*oamdns.FQDN)
 
 	info, err := whoisparser.Parse(resp)
-	if err != nil || info.Domain.Domain != fqdn.Name {
+	if err != nil || !strings.EqualFold(info.Domain.Name, fqdn.Name) {
 		return nil, nil
 	}
 

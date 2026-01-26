@@ -14,6 +14,7 @@ import (
 	dbt "github.com/owasp-amass/asset-db/types"
 	oam "github.com/owasp-amass/open-asset-model"
 	oamcon "github.com/owasp-amass/open-asset-model/contact"
+	oamorg "github.com/owasp-amass/open-asset-model/org"
 	oamreg "github.com/owasp-amass/open-asset-model/registration"
 )
 
@@ -27,7 +28,7 @@ func (h *horDomRec) Name() string {
 }
 
 func (h *horDomRec) check(e *et.Event) error {
-	dr, ok := e.Entity.Asset.(*oamreg.DomainRecord)
+	_, ok := e.Entity.Asset.(*oamreg.DomainRecord)
 	if !ok {
 		return errors.New("failed to extract the DomainRecord asset")
 	}
@@ -41,6 +42,22 @@ func (h *horDomRec) check(e *et.Event) error {
 		return nil
 	}
 
+	if ents, err := h.plugin.getContactRecordLocations(e, cr); err == nil && len(ents) > 0 {
+		for _, ent := range ents {
+			e.Session.Scope().Add(ent.Asset)
+		}
+	}
+
+	if ents, err := h.plugin.getContactRecordOrganizations(e, cr); err == nil && len(ents) > 0 {
+		for _, ent := range ents {
+			if o, valid := ent.Asset.(*oamorg.Organization); valid {
+				e.Session.Scope().AddOrgByName(o.Name)
+				if o.LegalName != "" {
+					e.Session.Scope().AddOrgByName(o.LegalName)
+				}
+			}
+		}
+	}
 	return nil
 }
 
@@ -73,7 +90,7 @@ func (h *horDomRec) getRegistrantContactRecord(e *et.Event) (*dbt.Entity, error)
 		return nil, err
 	}
 
-	ctx, cancel := context.WithTimeout(e.Session.Ctx(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(e.Session.Ctx(), 5*time.Second)
 	defer cancel()
 
 	edges, err := e.Session.DB().OutgoingEdges(ctx, e.Entity, since, "registrant_contact")
@@ -89,6 +106,5 @@ func (h *horDomRec) getRegistrantContactRecord(e *et.Event) (*dbt.Entity, error)
 	if _, valid := to.Asset.(*oamcon.ContactRecord); valid {
 		return to, nil
 	}
-
 	return nil, errors.New("failed to extract the registrant ContactRecord entity")
 }
