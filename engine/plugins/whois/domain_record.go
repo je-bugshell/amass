@@ -143,7 +143,7 @@ func (r *domrec) store(e *et.Event, resp *whoisparser.WhoisInfo, asset *dbt.Enti
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(e.Session.Ctx(), 3*time.Second)
+	ctx, cancel := context.WithTimeout(e.Session.Ctx(), 5*time.Second)
 	defer cancel()
 
 	for _, ns := range resp.Domain.NameServers {
