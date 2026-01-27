@@ -50,7 +50,7 @@ func (w *whois) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       w,
 		Name:         w.fqdn.name,
-		Position:     43,
+		Position:     14,
 		MaxInstances: support.MinHandlerInstances,
 		Transforms:   []string{string(oam.DomainRecord)},
 		EventType:    oam.FQDN,

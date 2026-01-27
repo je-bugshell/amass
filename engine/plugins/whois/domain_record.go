@@ -269,7 +269,7 @@ func (r *domrec) storeContact(e *et.Event, c *domrecContact, dr *dbt.Entity, m *
 		From:     dr,
 		FromName: "DomainRecord: " + record.Domain,
 		To:       cr,
-		ToName:   "ContactRecord" + c.DiscoveredAt,
+		ToName:   "ContactRecord: " + c.DiscoveredAt,
 		Rel:      &general.SimpleRelation{Name: c.RelationName},
 	})
 	// process the contact record relation immediately
