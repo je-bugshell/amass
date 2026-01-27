@@ -7,6 +7,7 @@ package whois
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -76,6 +77,8 @@ func (r *fqdnLookup) query(e *et.Event, name string, asset *dbt.Entity, src *et.
 
 	resp, err := whoisclient.Whois(name)
 	if err != nil {
+		msg := fmt.Sprintf("failed to acquire the WHOIS record for %s", name)
+		e.Session.Log().Error(msg, slog.Group("plugin", "name", r.plugin.name, "handler", r.name))
 		return nil, nil
 	}
 
@@ -87,6 +90,8 @@ func (r *fqdnLookup) store(e *et.Event, resp string, asset *dbt.Entity, src *et.
 
 	info, err := whoisparser.Parse(resp)
 	if err != nil || !strings.EqualFold(info.Domain.Name, fqdn.Name) {
+		msg := fmt.Sprintf("failed to parse the WHOIS record for %s", fqdn.Name)
+		e.Session.Log().Error(msg, slog.Group("plugin", "name", r.plugin.name, "handler", r.name))
 		return nil, nil
 	}
 
@@ -129,6 +134,8 @@ func (r *fqdnLookup) store(e *et.Event, resp string, asset *dbt.Entity, src *et.
 				Source:     src.Name,
 				Confidence: src.Confidence,
 			})
+			msg := fmt.Sprintf("successfully acquired the WHOIS record for %s", fqdn.Name)
+			e.Session.Log().Error(msg, slog.Group("plugin", "name", r.plugin.name, "handler", r.name))
 		}
 	}
 

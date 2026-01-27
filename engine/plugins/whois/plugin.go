@@ -24,14 +24,14 @@ type whois struct {
 }
 
 func NewWHOIS() et.Plugin {
-	limit := rate.Every(time.Second)
+	limit := rate.Every(5 * time.Second)
 
 	return &whois{
 		name:   "WHOIS",
 		rlimit: rate.NewLimiter(limit, 1),
 		source: &et.Source{
 			Name:       "WHOIS",
-			Confidence: 100,
+			Confidence: 90,
 		},
 	}
 }

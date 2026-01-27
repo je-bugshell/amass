@@ -38,7 +38,7 @@ func (r *domrec) Name() string {
 func (r *domrec) check(e *et.Event) error {
 	_, ok := e.Entity.Asset.(*oamreg.DomainRecord)
 	if !ok {
-		return errors.New("failed to extract the DomainRecord asset")
+		return errors.New("the event did not contain a DomainRecord asset")
 	}
 
 	matches, err := e.Session.Config().CheckTransformations(
