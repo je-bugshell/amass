@@ -97,9 +97,7 @@ func (ix *leakix) check(e *et.Event) error {
 	}
 
 	var names []*dbt.Entity
-	if support.AssetMonitoredWithinTTL(e.Session, e.Entity, ix.source, since) {
-		names = append(names, ix.lookup(e, fqdn.Name, since)...)
-	} else {
+	if !support.AssetMonitoredWithinTTL(e.Session, e.Entity, ix.source, since) {
 		names = append(names, ix.query(e, fqdn.Name, keys)...)
 		support.MarkAssetMonitored(e.Session, e.Entity, ix.source)
 	}
@@ -108,10 +106,6 @@ func (ix *leakix) check(e *et.Event) error {
 		ix.process(e, names)
 	}
 	return nil
-}
-
-func (ix *leakix) lookup(e *et.Event, name string, since time.Time) []*dbt.Entity {
-	return support.SourceToAssetsWithinTTL(e.Session, name, string(oam.FQDN), ix.source, since)
 }
 
 func (ix *leakix) query(e *et.Event, name string, keys []string) []*dbt.Entity {

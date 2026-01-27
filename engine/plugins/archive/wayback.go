@@ -88,9 +88,7 @@ func (w *wayback) check(e *et.Event) error {
 	}
 
 	var names []*dbt.Entity
-	if support.AssetMonitoredWithinTTL(e.Session, e.Entity, w.source, since) {
-		names = append(names, w.lookup(e, fqdn.Name, since)...)
-	} else {
+	if !support.AssetMonitoredWithinTTL(e.Session, e.Entity, w.source, since) {
 		names = append(names, w.query(e, fqdn.Name)...)
 		support.MarkAssetMonitored(e.Session, e.Entity, w.source)
 	}
@@ -99,10 +97,6 @@ func (w *wayback) check(e *et.Event) error {
 		w.process(e, names)
 	}
 	return nil
-}
-
-func (w *wayback) lookup(e *et.Event, name string, since time.Time) []*dbt.Entity {
-	return support.SourceToAssetsWithinTTL(e.Session, name, string(oam.FQDN), w.source, since)
 }
 
 func (w *wayback) query(e *et.Event, name string) []*dbt.Entity {

@@ -1,4 +1,4 @@
-// Copyright © by Jeff Foley 2017-2025. All rights reserved.
+// Copyright © by Jeff Foley 2017-2026. All rights reserved.
 // Use of this source code is governed by Apache 2 LICENSE that can be found in the LICENSE file.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -82,7 +82,7 @@ func (v *ipverse) check(e *et.Event) error {
 		return nil
 	}
 
-	rec := v.query(e.Entity)
+	rec := v.query(e.Session, e.Entity)
 	if rec == nil {
 		return nil
 	}
@@ -102,11 +102,14 @@ type record struct {
 	} `json:"subnets"`
 }
 
-func (v *ipverse) query(asset *dbt.Entity) *record {
-	_ = v.rlimit.Wait(context.TODO())
+func (v *ipverse) query(sess et.Session, asset *dbt.Entity) *record {
+	_ = v.rlimit.Wait(sess.Ctx())
+
+	ctx, cancel := context.WithTimeout(sess.Ctx(), 30*time.Second)
+	defer cancel()
 
 	as := asset.Asset.(*oamnet.AutonomousSystem)
-	resp, err := http.RequestWebPage(context.TODO(), &http.Request{URL: fmt.Sprintf(v.fmtstr, as.Number)})
+	resp, err := http.RequestWebPage(ctx, &http.Request{URL: fmt.Sprintf(v.fmtstr, as.Number)})
 	if err != nil || resp.Body == "" {
 		return nil
 	}

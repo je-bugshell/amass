@@ -101,9 +101,7 @@ func (vt *virusTotal) check(e *et.Event) error {
 	}
 
 	var names []*dbt.Entity
-	if support.AssetMonitoredWithinTTL(e.Session, e.Entity, vt.source, since) {
-		names = append(names, vt.lookup(e, fqdn.Name, since)...)
-	} else {
+	if !support.AssetMonitoredWithinTTL(e.Session, e.Entity, vt.source, since) {
 		names = append(names, vt.query(e, fqdn.Name, keys)...)
 		support.MarkAssetMonitored(e.Session, e.Entity, vt.source)
 	}
@@ -112,10 +110,6 @@ func (vt *virusTotal) check(e *et.Event) error {
 		vt.process(e, names)
 	}
 	return nil
-}
-
-func (vt *virusTotal) lookup(e *et.Event, name string, since time.Time) []*dbt.Entity {
-	return support.SourceToAssetsWithinTTL(e.Session, name, string(oam.FQDN), vt.source, since)
 }
 
 func (vt *virusTotal) query(e *et.Event, name string, keys []string) []*dbt.Entity {

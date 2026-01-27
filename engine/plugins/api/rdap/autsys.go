@@ -8,7 +8,6 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"strconv"
 	"time"
 
 	"github.com/openrdap/rdap"
@@ -45,7 +44,7 @@ func (r *autsys) check(e *et.Event) error {
 	var asset *dbt.Entity
 	var record *rdap.Autnum
 	if support.AssetMonitoredWithinTTL(e.Session, e.Entity, r.plugin.source, since) {
-		asset = r.lookup(e, strconv.Itoa(as.Number), since)
+		asset = r.lookup(e, as.Number, since)
 	} else {
 		asset, record = r.query(e, e.Entity)
 		support.MarkAssetMonitored(e.Session, e.Entity, r.plugin.source)
@@ -57,10 +56,27 @@ func (r *autsys) check(e *et.Event) error {
 	return nil
 }
 
-func (r *autsys) lookup(e *et.Event, num string, since time.Time) *dbt.Entity {
-	if assets := support.SourceToAssetsWithinTTL(e.Session, num, string(oam.AutnumRecord), r.plugin.source, since); len(assets) > 0 {
-		return assets[0]
+func (r *autsys) lookup(e *et.Event, num int, since time.Time) *dbt.Entity {
+	ctx, cancel := context.WithTimeout(e.Session.Ctx(), 10*time.Second)
+	defer cancel()
+
+	ents, err := e.Session.DB().FindEntitiesByContent(ctx, oam.AutnumRecord, since, 1, dbt.ContentFilters{
+		"number": num,
+	})
+	if err != nil || len(ents) != 1 {
+		return nil
 	}
+	ar := ents[0]
+
+	if tags, err := e.Session.DB().FindEntityTags(ctx, ar,
+		since, r.plugin.source.Name); err == nil && len(tags) > 0 {
+		for _, tag := range tags {
+			if tag.Property.PropertyType() == oam.SourceProperty {
+				return ar
+			}
+		}
+	}
+
 	return nil
 }
 

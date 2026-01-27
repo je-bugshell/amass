@@ -98,9 +98,7 @@ func (z *zetalytics) check(e *et.Event) error {
 	}
 
 	var names []*dbt.Entity
-	if support.AssetMonitoredWithinTTL(e.Session, e.Entity, z.source, since) {
-		names = append(names, z.lookup(e, fqdn.Name, since)...)
-	} else {
+	if !support.AssetMonitoredWithinTTL(e.Session, e.Entity, z.source, since) {
 		names = append(names, z.query(e, fqdn.Name, keys)...)
 		support.MarkAssetMonitored(e.Session, e.Entity, z.source)
 	}
@@ -109,10 +107,6 @@ func (z *zetalytics) check(e *et.Event) error {
 		z.process(e, names)
 	}
 	return nil
-}
-
-func (z *zetalytics) lookup(e *et.Event, name string, since time.Time) []*dbt.Entity {
-	return support.SourceToAssetsWithinTTL(e.Session, name, string(oam.FQDN), z.source, since)
 }
 
 func (z *zetalytics) query(e *et.Event, name string, keys []string) []*dbt.Entity {

@@ -95,9 +95,7 @@ func (d *dnsrepo) check(e *et.Event) error {
 	}
 
 	var names []*dbt.Entity
-	if support.AssetMonitoredWithinTTL(e.Session, e.Entity, d.source, since) {
-		names = append(names, d.lookup(e, fqdn.Name, since)...)
-	} else {
+	if !support.AssetMonitoredWithinTTL(e.Session, e.Entity, d.source, since) {
 		names = append(names, d.query(e, fqdn.Name, keys)...)
 		support.MarkAssetMonitored(e.Session, e.Entity, d.source)
 	}
@@ -106,10 +104,6 @@ func (d *dnsrepo) check(e *et.Event) error {
 		d.process(e, names)
 	}
 	return nil
-}
-
-func (d *dnsrepo) lookup(e *et.Event, name string, since time.Time) []*dbt.Entity {
-	return support.SourceToAssetsWithinTTL(e.Session, name, string(oam.FQDN), d.source, since)
 }
 
 func (d *dnsrepo) query(e *et.Event, name string, keys []string) []*dbt.Entity {

@@ -53,7 +53,7 @@ func (r *fqdnLookup) check(e *et.Event) error {
 	src := r.plugin.source
 	var record *whoisparser.WhoisInfo
 	if support.AssetMonitoredWithinTTL(e.Session, e.Entity, src, since) {
-		asset = r.lookup(e, fqdn.Name, src, since)
+		asset = r.lookup(e, fqdn.Name, since)
 	} else {
 		asset, record = r.query(e, fqdn.Name, e.Entity, src)
 		support.MarkAssetMonitored(e.Session, e.Entity, src)
@@ -65,10 +65,27 @@ func (r *fqdnLookup) check(e *et.Event) error {
 	return nil
 }
 
-func (r *fqdnLookup) lookup(e *et.Event, name string, src *et.Source, since time.Time) *dbt.Entity {
-	if assets := support.SourceToAssetsWithinTTL(e.Session, name, string(oam.DomainRecord), src, since); len(assets) > 0 {
-		return assets[0]
+func (r *fqdnLookup) lookup(e *et.Event, name string, since time.Time) *dbt.Entity {
+	ctx, cancel := context.WithTimeout(e.Session.Ctx(), 10*time.Second)
+	defer cancel()
+
+	ents, err := e.Session.DB().FindEntitiesByContent(ctx, oam.DomainRecord, since, 1, dbt.ContentFilters{
+		"domain": name,
+	})
+	if err != nil || len(ents) != 1 {
+		return nil
 	}
+	dr := ents[0]
+
+	if tags, err := e.Session.DB().FindEntityTags(ctx, dr,
+		since, r.plugin.source.Name); err == nil && len(tags) > 0 {
+		for _, tag := range tags {
+			if tag.Property.PropertyType() == oam.SourceProperty {
+				return dr
+			}
+		}
+	}
+
 	return nil
 }
 

@@ -97,9 +97,7 @@ func (st *securityTrails) check(e *et.Event) error {
 	}
 
 	var names []*dbt.Entity
-	if support.AssetMonitoredWithinTTL(e.Session, e.Entity, st.source, since) {
-		names = append(names, st.lookup(e, fqdn.Name, since)...)
-	} else {
+	if !support.AssetMonitoredWithinTTL(e.Session, e.Entity, st.source, since) {
 		names = append(names, st.query(e, fqdn.Name, keys)...)
 		support.MarkAssetMonitored(e.Session, e.Entity, st.source)
 	}
@@ -108,10 +106,6 @@ func (st *securityTrails) check(e *et.Event) error {
 		st.process(e, names)
 	}
 	return nil
-}
-
-func (st *securityTrails) lookup(e *et.Event, name string, since time.Time) []*dbt.Entity {
-	return support.SourceToAssetsWithinTTL(e.Session, name, string(oam.FQDN), st.source, since)
 }
 
 func (st *securityTrails) query(e *et.Event, name string, keys []string) []*dbt.Entity {

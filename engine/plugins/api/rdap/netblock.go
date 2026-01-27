@@ -59,9 +59,26 @@ func (nb *netblock) check(e *et.Event) error {
 }
 
 func (nb *netblock) lookup(e *et.Event, cidr string, since time.Time) *dbt.Entity {
-	if assets := support.SourceToAssetsWithinTTL(e.Session, cidr, string(oam.IPNetRecord), nb.plugin.source, since); len(assets) > 0 {
-		return assets[0]
+	ctx, cancel := context.WithTimeout(e.Session.Ctx(), 10*time.Second)
+	defer cancel()
+
+	ents, err := e.Session.DB().FindEntitiesByContent(ctx, oam.IPNetRecord, since, 1, dbt.ContentFilters{
+		"cidr": cidr,
+	})
+	if err != nil || len(ents) != 1 {
+		return nil
 	}
+	ipnet := ents[0]
+
+	if tags, err := e.Session.DB().FindEntityTags(ctx, ipnet,
+		since, nb.plugin.source.Name); err == nil && len(tags) > 0 {
+		for _, tag := range tags {
+			if tag.Property.PropertyType() == oam.SourceProperty {
+				return ipnet
+			}
+		}
+	}
+
 	return nil
 }
 

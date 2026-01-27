@@ -1,4 +1,4 @@
-// Copyright © by Jeff Foley 2017-2025. All rights reserved.
+// Copyright © by Jeff Foley 2017-2026. All rights reserved.
 // Use of this source code is governed by Apache 2 LICENSE that can be found in the LICENSE file.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -87,9 +87,7 @@ func (rd *rapidDNS) check(e *et.Event) error {
 	}
 
 	var names []*dbt.Entity
-	if support.AssetMonitoredWithinTTL(e.Session, e.Entity, rd.source, since) {
-		names = append(names, rd.lookup(e, fqdn.Name, since)...)
-	} else {
+	if !support.AssetMonitoredWithinTTL(e.Session, e.Entity, rd.source, since) {
 		names = append(names, rd.query(e, fqdn.Name)...)
 		support.MarkAssetMonitored(e.Session, e.Entity, rd.source)
 	}
@@ -98,10 +96,6 @@ func (rd *rapidDNS) check(e *et.Event) error {
 		rd.process(e, names)
 	}
 	return nil
-}
-
-func (rd *rapidDNS) lookup(e *et.Event, name string, since time.Time) []*dbt.Entity {
-	return support.SourceToAssetsWithinTTL(e.Session, name, string(oam.FQDN), rd.source, since)
 }
 
 func (rd *rapidDNS) query(e *et.Event, name string) []*dbt.Entity {

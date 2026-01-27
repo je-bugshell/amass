@@ -18,7 +18,6 @@ import (
 	dbt "github.com/owasp-amass/asset-db/types"
 	oam "github.com/owasp-amass/open-asset-model"
 	oamdns "github.com/owasp-amass/open-asset-model/dns"
-	"github.com/owasp-amass/open-asset-model/general"
 	"golang.org/x/time/rate"
 )
 
@@ -92,9 +91,7 @@ func (p *Prospeo) check(e *et.Event) error {
 	}
 
 	var names []*dbt.Entity
-	if support.AssetMonitoredWithinTTL(e.Session, e.Entity, p.source, since) {
-		names = append(names, p.lookup(e, fqdn.Name, since)...)
-	} else {
+	if !support.AssetMonitoredWithinTTL(e.Session, e.Entity, p.source, since) {
 		names = append(names, p.query(e, fqdn.Name)...)
 		support.MarkAssetMonitored(e.Session, e.Entity, p.source)
 	}
@@ -103,18 +100,6 @@ func (p *Prospeo) check(e *et.Event) error {
 		p.process(e, names)
 	}
 	return nil
-}
-
-func (p *Prospeo) lookup(e *et.Event, name string, since time.Time) []*dbt.Entity {
-	var emails []*dbt.Entity
-
-	for _, e := range support.SourceToAssetsWithinTTL(e.Session, name, string(oam.Identifier), p.source, since) {
-		if email, ok := e.Asset.(*general.Identifier); ok && email != nil && email.Type == general.EmailAddress {
-			emails = append(emails, e)
-		}
-	}
-
-	return emails
 }
 
 func (p *Prospeo) query(e *et.Event, name string) []*dbt.Entity {

@@ -9,13 +9,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net/netip"
-	"strconv"
 	"strings"
 	"time"
 
 	et "github.com/owasp-amass/amass/v5/engine/types"
-	"github.com/owasp-amass/amass/v5/internal/db"
 	dbt "github.com/owasp-amass/asset-db/types"
 	oam "github.com/owasp-amass/open-asset-model"
 	oamcert "github.com/owasp-amass/open-asset-model/certificate"
@@ -24,65 +21,6 @@ import (
 	oamnet "github.com/owasp-amass/open-asset-model/network"
 	"github.com/owasp-amass/open-asset-model/platform"
 )
-
-func SourceToAssetsWithinTTL(session et.Session, name, atype string, src *et.Source, since time.Time) []*dbt.Entity {
-	var entities []*dbt.Entity
-
-	ctx, cancel := context.WithTimeout(session.Ctx(), 10*time.Second)
-	defer cancel()
-
-	switch atype {
-	case string(oam.FQDN):
-		ents, err := session.DB().FindEntitiesByContent(ctx, oam.FQDN, since, 1, dbt.ContentFilters{
-			"name": name,
-		})
-		if err != nil {
-			return nil
-		}
-
-		entities, _ = db.FindByFQDNScope(ctx, session.DB(), ents[0], since)
-	case string(oam.Identifier):
-		if parts := strings.Split(name, ":"); len(parts) == 2 {
-			entities, _ = session.DB().FindEntitiesByContent(ctx, oam.Identifier, since, 1, dbt.ContentFilters{
-				"unique_id": name,
-			})
-		}
-	case string(oam.AutnumRecord):
-		num, err := strconv.Atoi(name)
-		if err != nil {
-			return nil
-		}
-
-		entities, _ = session.DB().FindEntitiesByContent(ctx, oam.AutnumRecord, since, 1, dbt.ContentFilters{
-			"number": num,
-		})
-	case string(oam.IPNetRecord):
-		prefix, err := netip.ParsePrefix(name)
-		if err != nil {
-			return nil
-		}
-
-		entities, _ = session.DB().FindEntitiesByContent(ctx, oam.IPNetRecord, since, 0, dbt.ContentFilters{
-			"cidr": prefix,
-		})
-	case string(oam.Service):
-		entities, _ = session.DB().FindEntitiesByContent(ctx, oam.Service, since, 1, dbt.ContentFilters{
-			"unique_id": name,
-		})
-	}
-
-	var results []*dbt.Entity
-	for _, entity := range entities {
-		if tags, err := session.DB().FindEntityTags(ctx, entity, since, src.Name); err == nil && len(tags) > 0 {
-			for _, tag := range tags {
-				if tag.Property.PropertyType() == oam.SourceProperty {
-					results = append(results, entity)
-				}
-			}
-		}
-	}
-	return results
-}
 
 func StoreFQDNsWithSource(session et.Session, names []string, src *et.Source, plugin, handler string) []*dbt.Entity {
 	var results []*dbt.Entity

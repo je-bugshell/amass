@@ -90,9 +90,7 @@ func (g *grepApp) check(e *et.Event) error {
 	}
 
 	var names []*dbt.Entity
-	if support.AssetMonitoredWithinTTL(e.Session, e.Entity, g.source, since) {
-		names = append(names, g.lookup(e, fqdn.Name, since)...)
-	} else {
+	if !support.AssetMonitoredWithinTTL(e.Session, e.Entity, g.source, since) {
 		names = append(names, g.query(e, fqdn.Name)...)
 		support.MarkAssetMonitored(e.Session, e.Entity, g.source)
 	}
@@ -101,9 +99,6 @@ func (g *grepApp) check(e *et.Event) error {
 		g.process(e, names)
 	}
 	return nil
-}
-func (g *grepApp) lookup(e *et.Event, name string, since time.Time) []*dbt.Entity {
-	return support.SourceToAssetsWithinTTL(e.Session, name, string(oam.Identifier), g.source, since)
 }
 
 func (g *grepApp) query(e *et.Event, name string) []*dbt.Entity {

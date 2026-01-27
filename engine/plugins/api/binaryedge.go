@@ -98,9 +98,7 @@ func (be *binaryEdge) check(e *et.Event) error {
 	}
 
 	var names []*dbt.Entity
-	if support.AssetMonitoredWithinTTL(e.Session, e.Entity, be.source, since) {
-		names = append(names, be.lookup(e, fqdn.Name, since)...)
-	} else {
+	if !support.AssetMonitoredWithinTTL(e.Session, e.Entity, be.source, since) {
 		names = append(names, be.query(e, fqdn.Name, keys)...)
 		support.MarkAssetMonitored(e.Session, e.Entity, be.source)
 	}
@@ -109,10 +107,6 @@ func (be *binaryEdge) check(e *et.Event) error {
 		be.process(e, names)
 	}
 	return nil
-}
-
-func (be *binaryEdge) lookup(e *et.Event, name string, since time.Time) []*dbt.Entity {
-	return support.SourceToAssetsWithinTTL(e.Session, name, string(oam.FQDN), be.source, since)
 }
 
 func (be *binaryEdge) query(e *et.Event, name string, keys []string) []*dbt.Entity {
