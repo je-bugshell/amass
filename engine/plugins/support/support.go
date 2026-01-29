@@ -197,6 +197,33 @@ func IPAddressSweep(e *et.Event, addr *oamnet.IPAddress, src *et.Source, size in
 	}
 }
 
+func IsRegisteredDomain(session et.Session, fqdn *dbt.Entity) bool {
+	if _, valid := fqdn.Asset.(*oamdns.FQDN); !valid {
+		return false
+	}
+
+	ctx, cancel := context.WithTimeout(session.Ctx(), 10*time.Second)
+	defer cancel()
+
+	matches, err := session.Config().CheckTransformations(string(oam.FQDN), string(oam.FQDN))
+	if err != nil || matches == nil {
+		return false
+	}
+
+	var since time.Time
+	if ttl := matches.TTL(string(oam.FQDN)); ttl >= 0 {
+		since = time.Now().Add(time.Duration(-ttl) * time.Minute)
+	}
+	if since.IsZero() {
+		return false
+	}
+
+	if edges, err := session.DB().IncomingEdges(ctx, fqdn, since, "node"); err == nil && len(edges) > 0 {
+		return false
+	}
+	return true
+}
+
 func IsCNAME(session et.Session, name *oamdns.FQDN) (*oamdns.FQDN, bool) {
 	ctx, cancel := context.WithTimeout(session.Ctx(), 30*time.Second)
 	defer cancel()
