@@ -51,7 +51,7 @@ func (w *whois) Start(r et.Registry) error {
 		Plugin:       w,
 		Name:         w.fqdn.name,
 		Position:     14,
-		MaxInstances: support.MinHandlerInstances,
+		MaxInstances: support.MidHandlerInstances,
 		Transforms:   []string{string(oam.DomainRecord)},
 		EventType:    oam.FQDN,
 		Callback:     w.fqdn.check,
