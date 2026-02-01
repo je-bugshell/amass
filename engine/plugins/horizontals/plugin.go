@@ -14,14 +14,9 @@ import (
 	et "github.com/owasp-amass/amass/v5/engine/types"
 	dbt "github.com/owasp-amass/asset-db/types"
 	oam "github.com/owasp-amass/open-asset-model"
-	oamcert "github.com/owasp-amass/open-asset-model/certificate"
-	oamcon "github.com/owasp-amass/open-asset-model/contact"
-	oamdns "github.com/owasp-amass/open-asset-model/dns"
 	oamgen "github.com/owasp-amass/open-asset-model/general"
 	oamnet "github.com/owasp-amass/open-asset-model/network"
 	oamorg "github.com/owasp-amass/open-asset-model/org"
-	oamreg "github.com/owasp-amass/open-asset-model/registration"
-	oamurl "github.com/owasp-amass/open-asset-model/url"
 )
 
 type horizPlugin struct {
@@ -125,38 +120,6 @@ func (h *horizPlugin) Start(r et.Registry) error {
 
 func (h *horizPlugin) Stop() {
 	h.log.Info("Plugin stopped")
-}
-
-func assetToContentFilters(a oam.Asset) dbt.ContentFilters {
-	filters := make(dbt.ContentFilters)
-
-	switch v := a.(type) {
-	case *oamdns.FQDN:
-		filters["name"] = v.Name
-	case *oamnet.IPAddress:
-		filters["address"] = v.Address.String()
-	case *oamnet.Netblock:
-		filters["cidr"] = v.CIDR.String()
-	case *oamnet.AutonomousSystem:
-		filters["number"] = v.Number
-	case *oamreg.DomainRecord:
-		filters["domain"] = v.Domain
-	case *oamreg.IPNetRecord:
-		filters["handle"] = v.Handle
-	case *oamreg.AutnumRecord:
-		filters["handle"] = v.Handle
-	case *oamgen.Identifier:
-		filters["unique_id"] = v.UniqueID
-	case *oamcert.TLSCertificate:
-		filters["serial_number"] = v.SerialNumber
-	case *oamurl.URL:
-		filters["url"] = v.Raw
-	case *oamorg.Organization:
-		filters["unique_id"] = v.ID
-	case *oamcon.Location:
-		filters["address"] = v.Address
-	}
-	return filters
 }
 
 func (h *horizPlugin) submitIPAddress(e *et.Event, asset *oamnet.IPAddress, src *et.Source) {

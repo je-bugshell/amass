@@ -1,4 +1,4 @@
-// Copyright © by Jeff Foley 2017-2025. All rights reserved.
+// Copyright © by Jeff Foley 2017-2026. All rights reserved.
 // Use of this source code is governed by Apache 2 LICENSE that can be found in the LICENSE file.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -38,11 +38,6 @@ func NewEngine(l *slog.Logger) (*Engine, error) {
 	reg := registry.NewRegistry(l)
 
 	dis := dispatcher.NewDispatcher(l, reg, mgr)
-	if dis == nil {
-		mgr.Shutdown()
-		return nil, errors.New("failed to create the event scheduler")
-	}
-
 	if err := plugins.LoadAndStartPlugins(reg); err != nil {
 		return nil, err
 	}

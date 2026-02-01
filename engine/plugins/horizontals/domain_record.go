@@ -14,6 +14,7 @@ import (
 	dbt "github.com/owasp-amass/asset-db/types"
 	oam "github.com/owasp-amass/open-asset-model"
 	oamcon "github.com/owasp-amass/open-asset-model/contact"
+	oamdns "github.com/owasp-amass/open-asset-model/dns"
 	oamorg "github.com/owasp-amass/open-asset-model/org"
 	oamreg "github.com/owasp-amass/open-asset-model/registration"
 )
@@ -28,59 +29,49 @@ func (h *horDomRec) Name() string {
 }
 
 func (h *horDomRec) check(e *et.Event) error {
-	_, ok := e.Entity.Asset.(*oamreg.DomainRecord)
+	dr, ok := e.Entity.Asset.(*oamreg.DomainRecord)
 	if !ok {
 		return errors.New("failed to extract the DomainRecord asset")
 	}
 
-	if !h.isDomainRecordNameInScope(e) {
+	if !h.isDomainRecordNameInScope(e, dr) {
 		return nil
 	}
 
-	cr, err := h.getRegistrantContactRecord(e)
-	if err != nil {
+	orgs, locs := h.lookupRegistrantOrgsAndLocations(e)
+	if len(orgs) == 0 && len(locs) == 0 {
 		return nil
 	}
 
-	if ents, err := h.plugin.getContactRecordLocations(e, cr); err == nil && len(ents) > 0 {
-		for _, ent := range ents {
-			e.Session.Scope().Add(ent.Asset)
-		}
-	}
-
-	if ents, err := h.plugin.getContactRecordOrganizations(e, cr); err == nil && len(ents) > 0 {
-		for _, ent := range ents {
-			if o, valid := ent.Asset.(*oamorg.Organization); valid {
-				e.Session.Scope().AddOrgByName(o.Name)
-				if o.LegalName != "" {
-					e.Session.Scope().AddOrgByName(o.LegalName)
-				}
-			}
-		}
-	}
+	h.process(e, orgs, locs)
 	return nil
 }
 
-func (h *horDomRec) isDomainRecordNameInScope(e *et.Event) bool {
-	since, err := support.TTLStartTime(e.Session.Config(), string(oam.FQDN), string(oam.FQDN), h.plugin.name)
+func (h *horDomRec) lookupRegistrantOrgsAndLocations(e *et.Event) ([]*oamorg.Organization, []*oamcon.Location) {
+	cr, err := h.getRegistrantContactRecord(e)
 	if err != nil {
-		return false
+		return nil, nil
 	}
 
-	ctx, cancel := context.WithTimeout(e.Session.Ctx(), 10*time.Second)
-	defer cancel()
-
-	ents, err := e.Session.DB().FindEntitiesByContent(ctx,
-		e.Entity.Asset.AssetType(), since, 1, assetToContentFilters(e.Entity.Asset))
-	if err != nil || len(ents) != 1 {
-		return false
+	var resorgs []*oamorg.Organization
+	if ents, err := h.plugin.getContactRecordOrganizations(e, cr); err == nil && len(ents) > 0 {
+		for _, ent := range ents {
+			if o, valid := ent.Asset.(*oamorg.Organization); valid {
+				resorgs = append(resorgs, o)
+			}
+		}
 	}
-	fqdn := ents[0]
 
-	if _, conf := e.Session.Scope().IsAssetInScope(fqdn.Asset, 0); conf > 0 {
-		return true
+	var reslocs []*oamcon.Location
+	if ents, err := h.plugin.getContactRecordLocations(e, cr); err == nil && len(ents) > 0 {
+		for _, ent := range ents {
+			if loc, valid := ent.Asset.(*oamcon.Location); valid {
+				reslocs = append(reslocs, loc)
+			}
+		}
 	}
-	return false
+
+	return resorgs, reslocs
 }
 
 func (h *horDomRec) getRegistrantContactRecord(e *et.Event) (*dbt.Entity, error) {
@@ -107,4 +98,20 @@ func (h *horDomRec) getRegistrantContactRecord(e *et.Event) (*dbt.Entity, error)
 		return to, nil
 	}
 	return nil, errors.New("failed to extract the registrant ContactRecord entity")
+}
+
+func (h *horDomRec) isDomainRecordNameInScope(e *et.Event, dr *oamreg.DomainRecord) bool {
+	if _, conf := e.Session.Scope().IsAssetInScope(&oamdns.FQDN{Name: dr.Domain}, 0); conf > 0 {
+		return true
+	}
+	return false
+}
+
+func (h *horDomRec) process(e *et.Event, orgs []*oamorg.Organization, locs []*oamcon.Location) {
+	for _, o := range orgs {
+		e.Session.Scope().Add(o)
+	}
+	for _, loc := range locs {
+		e.Session.Scope().Add(loc)
+	}
 }

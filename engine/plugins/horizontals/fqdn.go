@@ -42,12 +42,11 @@ func (h *horfqdn) check(e *et.Event) error {
 }
 
 func (h *horfqdn) lookup(e *et.Event, asset *dbt.Entity) []*et.Association {
-	assocs, err := e.Session.Scope().IsAssociated(&et.Association{
+	if assocs, err := e.Session.Scope().IsAssociated(&et.Association{
 		Submission:  asset,
 		ScopeChange: true,
-	})
-	if err != nil {
-		return nil
+	}); err == nil {
+		return assocs
 	}
-	return assocs
+	return nil
 }
