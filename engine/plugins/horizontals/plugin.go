@@ -25,7 +25,7 @@ type horizPlugin struct {
 	horfqdn    *horfqdn
 	horaddr    *horaddr
 	horContact *horContact
-	horDomRec  *horDomRec
+	horRegRec  *horRegRec
 	source     *et.Source
 }
 
@@ -34,7 +34,7 @@ func NewHorizontals() et.Plugin {
 		name: "Horizontals",
 		source: &et.Source{
 			Name:       "Horizontals",
-			Confidence: 50,
+			Confidence: 75,
 		},
 	}
 }
@@ -54,6 +54,7 @@ func (h *horizPlugin) Start(r et.Registry) error {
 		Plugin:       h,
 		Name:         h.horfqdn.name,
 		Position:     10,
+		Exclusive:    true,
 		MaxInstances: support.MaxHandlerInstances,
 		Transforms:   []string{string(oam.FQDN)},
 		EventType:    oam.FQDN,
@@ -70,6 +71,7 @@ func (h *horizPlugin) Start(r et.Registry) error {
 		Plugin:       h,
 		Name:         h.horaddr.name,
 		Position:     10,
+		Exclusive:    true,
 		MaxInstances: support.MaxHandlerInstances,
 		Transforms:   []string{string(oam.IPAddress)},
 		EventType:    oam.IPAddress,
@@ -86,6 +88,7 @@ func (h *horizPlugin) Start(r et.Registry) error {
 		Plugin:       h,
 		Name:         h.horContact.name,
 		Position:     10,
+		Exclusive:    true,
 		MaxInstances: support.MaxHandlerInstances,
 		Transforms: []string{
 			string(oam.Organization),
@@ -98,18 +101,43 @@ func (h *horizPlugin) Start(r et.Registry) error {
 		return err
 	}
 
-	h.horDomRec = &horDomRec{
-		name:   h.name + "-DomainRecord-Handler",
+	h.horRegRec = &horRegRec{
+		name:   h.name + "-Registration-Record-Handler",
 		plugin: h,
 	}
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       h,
-		Name:         h.horfqdn.name,
+		Name:         h.horRegRec.name,
 		Position:     10,
+		Exclusive:    true,
+		MaxInstances: support.MaxHandlerInstances,
+		Transforms:   []string{string(oam.AutnumRecord)},
+		EventType:    oam.AutnumRecord,
+		Callback:     h.horRegRec.check,
+	}); err != nil {
+		return err
+	}
+	if err := r.RegisterHandler(&et.Handler{
+		Plugin:       h,
+		Name:         h.horRegRec.name,
+		Position:     10,
+		Exclusive:    true,
 		MaxInstances: support.MaxHandlerInstances,
 		Transforms:   []string{string(oam.DomainRecord)},
 		EventType:    oam.DomainRecord,
-		Callback:     h.horDomRec.check,
+		Callback:     h.horRegRec.check,
+	}); err != nil {
+		return err
+	}
+	if err := r.RegisterHandler(&et.Handler{
+		Plugin:       h,
+		Name:         h.horRegRec.name,
+		Position:     10,
+		Exclusive:    true,
+		MaxInstances: support.MaxHandlerInstances,
+		Transforms:   []string{string(oam.IPNetRecord)},
+		EventType:    oam.IPNetRecord,
+		Callback:     h.horRegRec.check,
 	}); err != nil {
 		return err
 	}
@@ -192,6 +220,39 @@ func (h *horizPlugin) getContactRecordLocations(e *et.Event, cr *dbt.Entity) ([]
 	defer cancel()
 
 	edges, err := e.Session.DB().OutgoingEdges(ctx, cr, since, "location")
+	if err != nil || len(edges) == 0 {
+		return nil, errors.New("zero locations found")
+	}
+
+	var results []*dbt.Entity
+	for _, edge := range edges {
+		to, err := e.Session.DB().FindEntityById(ctx, edge.ToEntity.ID)
+		if err != nil {
+			continue
+		}
+
+		if _, valid := to.Asset.(*oamorg.Organization); valid {
+			results = append(results, to)
+		}
+	}
+
+	if len(results) == 0 {
+		return nil, errors.New("failed to extract the locations")
+	}
+	return results, nil
+}
+
+func (h *horizPlugin) getOrganizationLocations(e *et.Event, o *dbt.Entity) ([]*dbt.Entity, error) {
+	since, err := support.TTLStartTime(e.Session.Config(),
+		string(oam.Organization), string(oam.Location), h.name)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancel := context.WithTimeout(e.Session.Ctx(), 5*time.Second)
+	defer cancel()
+
+	edges, err := e.Session.DB().OutgoingEdges(ctx, o, since, "hq_address", "location")
 	if err != nil || len(edges) == 0 {
 		return nil, errors.New("zero locations found")
 	}

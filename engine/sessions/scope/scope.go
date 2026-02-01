@@ -85,14 +85,14 @@ func (s *Scope) IsAssetInScope(a oam.Asset, conf int) (oam.Asset, int) {
 	case *oamreg.DomainRecord:
 		match, accuracy = s.matchesDomain(&oamdns.FQDN{Name: v.Domain})
 		if match == nil || accuracy == 0 {
-			match, accuracy = s.matchesOrg(&oamorg.Organization{Name: v.Name}, conf)
+			match, accuracy = s.matchesOrg(&oamorg.Organization{ID: v.Name, Name: v.Name}, conf)
 		}
 	case *oamreg.IPNetRecord:
 		match, accuracy = s.matchesNetblock(&oamnet.Netblock{CIDR: v.CIDR, Type: v.Type})
 	case *oamreg.AutnumRecord:
 		match, accuracy = s.matchesAutonomousSystem(&oamnet.AutonomousSystem{Number: v.Number})
 		if match == nil || accuracy == 0 {
-			match, accuracy = s.matchesOrg(&oamorg.Organization{Name: v.Name}, conf)
+			match, accuracy = s.matchesOrg(&oamorg.Organization{ID: v.Name, Name: v.Name}, conf)
 		}
 	case *oamcert.TLSCertificate:
 		match, accuracy = s.matchesDomain(&oamdns.FQDN{Name: v.SubjectCommonName})

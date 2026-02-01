@@ -35,7 +35,7 @@ func (r *registry) RegisterHandler(h *et.Handler) error {
 	r.Lock()
 	defer r.Unlock()
 
-	// is the entry currently empty?
+	// is the entry for the requested event type currently empty?
 	if _, found := r.handlers[string(h.EventType)]; !found {
 		r.handlers[string(h.EventType)] = make(map[int][]*et.Handler)
 	}
@@ -64,6 +64,13 @@ loop:
 	}
 
 	et, p := string(h.EventType), h.Position
+	if _, found := r.handlers[et][p]; found && h.Exclusive {
+		err := fmt.Errorf("handler at position %d already registered for EventType %s", p, et)
+		r.Log().Error(fmt.Sprintf("Failed to register a handler: %v", err),
+			slog.Group("plugin", "name", h.Plugin.Name(), "handler", h.Name))
+		return err
+	}
+
 	r.handlers[et][p] = append(r.handlers[et][p], h)
 	return nil
 }
