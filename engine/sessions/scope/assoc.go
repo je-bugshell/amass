@@ -35,7 +35,7 @@ func (s *Scope) IsAssociated(req *et.Association) ([]*et.Association, error) {
 	// are any of these assets in the current session scope?
 	results := s.checkRelatedAssetsforAssoc(req, assocs)
 
-	if req.ScopeChange {
+	if req.ScopeChange && !s.Session.Config().Rigid {
 		var conf int
 		var best *et.Association
 

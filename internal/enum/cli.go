@@ -61,6 +61,7 @@ type Args struct {
 		NoColor      bool
 		NoRecursive  bool
 		Passive      bool
+		Rigid        bool
 		Silent       bool
 		Verbose      bool
 	}
@@ -119,6 +120,7 @@ func defineOptionFlags(fs *flag.FlagSet, args *Args) {
 	fs.BoolVar(&args.Options.NoColor, "nocolor", false, "Disable colorized output")
 	fs.BoolVar(&args.Options.NoRecursive, "norecursive", false, "Turn off recursive brute forcing")
 	fs.BoolVar(&args.Options.Passive, "passive", false, "Deprecated since passive is the default setting")
+	fs.BoolVar(&args.Options.Rigid, "rigid", false, "disable scope expansion")
 	fs.BoolVar(&args.Options.Silent, "silent", false, "Disable all output during execution")
 	fs.BoolVar(&args.Options.Verbose, "v", false, "Output status / debug / troubleshooting info")
 }
@@ -444,6 +446,9 @@ func (e Args) OverrideConfig(conf *config.Config) error {
 	}
 	if e.Blacklist.Len() > 0 {
 		conf.Scope.Blacklist = e.Blacklist.Slice()
+	}
+	if e.Options.Rigid {
+		conf.Rigid = true
 	}
 	if e.Options.Verbose {
 		conf.Verbose = true

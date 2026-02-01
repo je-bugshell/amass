@@ -33,6 +33,11 @@ func (h *horRegRec) check(e *et.Event) error {
 	var rlabel string
 	t := e.Entity.Asset.AssetType()
 
+	// check if scope expansion is allowed
+	if e.Session.Config().Rigid {
+		return nil
+	}
+
 	switch t {
 	case oam.AutnumRecord:
 		rlabel = "registrant"

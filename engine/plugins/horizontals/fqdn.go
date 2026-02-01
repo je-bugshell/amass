@@ -27,6 +27,11 @@ func (h *horfqdn) check(e *et.Event) error {
 		return errors.New("failed to extract the FQDN asset")
 	}
 
+	// check if scope expansion is allowed
+	if e.Session.Config().Rigid {
+		return nil
+	}
+
 	if _, conf := e.Session.Scope().IsAssetInScope(fqdn, 0); conf > 0 {
 		return nil
 	}

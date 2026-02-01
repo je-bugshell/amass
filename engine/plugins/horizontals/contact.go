@@ -27,6 +27,11 @@ func (h *horContact) check(e *et.Event) error {
 		return errors.New("failed to extract the ContactRecord asset")
 	}
 
+	// check if scope expansion is allowed
+	if e.Session.Config().Rigid {
+		return nil
+	}
+
 	if ents, err := h.plugin.getContactRecordLocations(e, e.Entity); err == nil && len(ents) > 0 {
 		for _, ent := range ents {
 			if assocs := h.lookup(e, ent); len(assocs) > 0 {
