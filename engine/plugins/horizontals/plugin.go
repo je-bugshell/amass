@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/caffix/stringset"
 	"github.com/owasp-amass/amass/v5/engine/plugins/support"
 	et "github.com/owasp-amass/amass/v5/engine/types"
 	dbt "github.com/owasp-amass/asset-db/types"
@@ -177,24 +178,70 @@ func (h *horizPlugin) submitIPAddress(e *et.Event, asset *oamnet.IPAddress, src 
 	}
 }
 
-func (h *horizPlugin) getContactRecordOrganizations(e *et.Event, cr *dbt.Entity) ([]*dbt.Entity, error) {
-	since, err := support.TTLStartTime(e.Session.Config(),
+func (h *horizPlugin) lookupContactRecordOrgsAndLocations(sess et.Session, cr *dbt.Entity) ([]*dbt.Entity, []*dbt.Entity) {
+	var orgents []*dbt.Entity
+
+	if ents, err := h.getContactRecordOrganizations(sess, cr); err == nil && len(ents) > 0 {
+		for _, ent := range ents {
+			if _, valid := ent.Asset.(*oamorg.Organization); valid {
+				orgents = append(orgents, ent)
+			}
+		}
+	}
+
+	set := stringset.New()
+	defer set.Close()
+
+	var locents []*dbt.Entity
+	for _, o := range orgents {
+		if ents, err := h.getOrganizationLocations(sess, o); err == nil && len(ents) > 0 {
+			for _, ent := range ents {
+				if set.Has(ent.ID) {
+					continue
+				}
+
+				if _, valid := ent.Asset.(*oamcon.Location); valid {
+					set.Insert(ent.ID)
+					locents = append(locents, ent)
+				}
+			}
+		}
+	}
+
+	if ents, err := h.getContactRecordLocations(sess, cr); err == nil && len(ents) > 0 {
+		for _, ent := range ents {
+			if set.Has(ent.ID) {
+				continue
+			}
+
+			if _, valid := ent.Asset.(*oamcon.Location); valid {
+				set.Insert(ent.ID)
+				locents = append(locents, ent)
+			}
+		}
+	}
+
+	return orgents, locents
+}
+
+func (h *horizPlugin) getContactRecordOrganizations(sess et.Session, cr *dbt.Entity) ([]*dbt.Entity, error) {
+	since, err := support.TTLStartTime(sess.Config(),
 		string(oam.ContactRecord), string(oam.Organization), h.name)
 	if err != nil {
 		return nil, err
 	}
 
-	ctx, cancel := context.WithTimeout(e.Session.Ctx(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(sess.Ctx(), 5*time.Second)
 	defer cancel()
 
-	edges, err := e.Session.DB().OutgoingEdges(ctx, cr, since, "organization")
+	edges, err := sess.DB().OutgoingEdges(ctx, cr, since, "organization")
 	if err != nil || len(edges) == 0 {
 		return nil, errors.New("zero organizations found")
 	}
 
 	var results []*dbt.Entity
 	for _, edge := range edges {
-		to, err := e.Session.DB().FindEntityById(ctx, edge.ToEntity.ID)
+		to, err := sess.DB().FindEntityById(ctx, edge.ToEntity.ID)
 		if err != nil {
 			continue
 		}
@@ -210,24 +257,24 @@ func (h *horizPlugin) getContactRecordOrganizations(e *et.Event, cr *dbt.Entity)
 	return results, nil
 }
 
-func (h *horizPlugin) getContactRecordLocations(e *et.Event, cr *dbt.Entity) ([]*dbt.Entity, error) {
-	since, err := support.TTLStartTime(e.Session.Config(),
+func (h *horizPlugin) getContactRecordLocations(sess et.Session, cr *dbt.Entity) ([]*dbt.Entity, error) {
+	since, err := support.TTLStartTime(sess.Config(),
 		string(oam.ContactRecord), string(oam.Location), h.name)
 	if err != nil {
 		return nil, err
 	}
 
-	ctx, cancel := context.WithTimeout(e.Session.Ctx(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(sess.Ctx(), 5*time.Second)
 	defer cancel()
 
-	edges, err := e.Session.DB().OutgoingEdges(ctx, cr, since, "location")
+	edges, err := sess.DB().OutgoingEdges(ctx, cr, since, "location")
 	if err != nil || len(edges) == 0 {
 		return nil, errors.New("zero locations found")
 	}
 
 	var results []*dbt.Entity
 	for _, edge := range edges {
-		to, err := e.Session.DB().FindEntityById(ctx, edge.ToEntity.ID)
+		to, err := sess.DB().FindEntityById(ctx, edge.ToEntity.ID)
 		if err != nil {
 			continue
 		}
@@ -243,24 +290,24 @@ func (h *horizPlugin) getContactRecordLocations(e *et.Event, cr *dbt.Entity) ([]
 	return results, nil
 }
 
-func (h *horizPlugin) getOrganizationLocations(e *et.Event, o *dbt.Entity) ([]*dbt.Entity, error) {
-	since, err := support.TTLStartTime(e.Session.Config(),
+func (h *horizPlugin) getOrganizationLocations(sess et.Session, o *dbt.Entity) ([]*dbt.Entity, error) {
+	since, err := support.TTLStartTime(sess.Config(),
 		string(oam.Organization), string(oam.Location), h.name)
 	if err != nil {
 		return nil, err
 	}
 
-	ctx, cancel := context.WithTimeout(e.Session.Ctx(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(sess.Ctx(), 5*time.Second)
 	defer cancel()
 
-	edges, err := e.Session.DB().OutgoingEdges(ctx, o, since, "hq_address", "location")
+	edges, err := sess.DB().OutgoingEdges(ctx, o, since, "hq_address", "location")
 	if err != nil || len(edges) == 0 {
 		return nil, errors.New("zero locations found")
 	}
 
 	var results []*dbt.Entity
 	for _, edge := range edges {
-		to, err := e.Session.DB().FindEntityById(ctx, edge.ToEntity.ID)
+		to, err := sess.DB().FindEntityById(ctx, edge.ToEntity.ID)
 		if err != nil {
 			continue
 		}

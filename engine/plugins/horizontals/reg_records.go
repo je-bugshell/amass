@@ -10,13 +10,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/caffix/stringset"
 	"github.com/owasp-amass/amass/v5/engine/plugins/support"
 	et "github.com/owasp-amass/amass/v5/engine/types"
 	dbt "github.com/owasp-amass/asset-db/types"
 	oam "github.com/owasp-amass/open-asset-model"
 	oamcon "github.com/owasp-amass/open-asset-model/contact"
-	oamorg "github.com/owasp-amass/open-asset-model/org"
 	oamreg "github.com/owasp-amass/open-asset-model/registration"
 )
 
@@ -49,7 +47,12 @@ func (h *horRegRec) check(e *et.Event) error {
 		return fmt.Errorf("asset type not supported: %s", t)
 	}
 
-	orgs, locs := h.lookupRegistrantOrgsAndLocations(e, rlabel)
+	cr, err := h.getRegistrantContactRecord(e, rlabel)
+	if err != nil {
+		return nil
+	}
+
+	orgs, locs := h.plugin.lookupContactRecordOrgsAndLocations(e.Session, cr)
 	if len(orgs) == 0 && len(locs) == 0 {
 		return nil
 	}
@@ -63,58 +66,6 @@ func (h *horRegRec) check(e *et.Event) error {
 		h.processIPNetRecord(e, orgs, locs)
 	}
 	return nil
-}
-
-func (h *horRegRec) lookupRegistrantOrgsAndLocations(e *et.Event, rlabel string) ([]*oamorg.Organization, []*oamcon.Location) {
-	cr, err := h.getRegistrantContactRecord(e, rlabel)
-	if err != nil {
-		return nil, nil
-	}
-
-	var orgents []*dbt.Entity
-	var resorgs []*oamorg.Organization
-	if ents, err := h.plugin.getContactRecordOrganizations(e, cr); err == nil && len(ents) > 0 {
-		for _, ent := range ents {
-			if o, valid := ent.Asset.(*oamorg.Organization); valid {
-				resorgs = append(resorgs, o)
-				orgents = append(orgents, ent)
-			}
-		}
-	}
-
-	set := stringset.New()
-	defer set.Close()
-
-	var reslocs []*oamcon.Location
-	for _, o := range orgents {
-		if ents, err := h.plugin.getOrganizationLocations(e, o); err == nil && len(ents) > 0 {
-			for _, ent := range ents {
-				if set.Has(ent.ID) {
-					continue
-				}
-
-				if loc, valid := ent.Asset.(*oamcon.Location); valid {
-					set.Insert(ent.ID)
-					reslocs = append(reslocs, loc)
-				}
-			}
-		}
-	}
-
-	if ents, err := h.plugin.getContactRecordLocations(e, cr); err == nil && len(ents) > 0 {
-		for _, ent := range ents {
-			if set.Has(ent.ID) {
-				continue
-			}
-
-			if loc, valid := ent.Asset.(*oamcon.Location); valid {
-				set.Insert(ent.ID)
-				reslocs = append(reslocs, loc)
-			}
-		}
-	}
-
-	return resorgs, reslocs
 }
 
 func (h *horRegRec) getRegistrantContactRecord(e *et.Event, label string) (*dbt.Entity, error) {
@@ -143,21 +94,21 @@ func (h *horRegRec) getRegistrantContactRecord(e *et.Event, label string) (*dbt.
 	return nil, errors.New("failed to extract the registrant ContactRecord entity")
 }
 
-func (h *horRegRec) processAutnumRecord(e *et.Event, orgs []*oamorg.Organization, locs []*oamcon.Location) {
+func (h *horRegRec) processAutnumRecord(e *et.Event, orgs []*dbt.Entity, locs []*dbt.Entity) {
 	// check if the autnum record / registered autonomous system is in scope
 	if _, conf := e.Session.Scope().IsAssetInScope(e.Entity.Asset, 0); conf > 0 {
 		for _, o := range orgs {
-			e.Session.Scope().Add(o)
+			e.Session.Scope().Add(o.Asset)
 		}
 		for _, loc := range locs {
-			e.Session.Scope().Add(loc)
+			e.Session.Scope().Add(loc.Asset)
 		}
 		return
 	}
 
 	var found bool
 	for _, o := range orgs {
-		if _, conf := e.Session.Scope().IsAssetInScope(o, 0); conf > 0 {
+		if _, conf := e.Session.Scope().IsAssetInScope(o.Asset, 0); conf > 0 {
 			found = true
 			break
 		}
@@ -165,7 +116,7 @@ func (h *horRegRec) processAutnumRecord(e *et.Event, orgs []*oamorg.Organization
 
 	if !found {
 		for _, loc := range locs {
-			if _, conf := e.Session.Scope().IsAssetInScope(loc, 0); conf > 0 {
+			if _, conf := e.Session.Scope().IsAssetInScope(loc.Asset, 0); conf > 0 {
 				found = true
 				break
 			}
@@ -178,42 +129,42 @@ func (h *horRegRec) processAutnumRecord(e *et.Event, orgs []*oamorg.Organization
 			e.Session.Scope().AddASN(an.Number)
 		}
 		for _, o := range orgs {
-			e.Session.Scope().Add(o)
+			e.Session.Scope().Add(o.Asset)
 		}
 		for _, loc := range locs {
-			e.Session.Scope().Add(loc)
+			e.Session.Scope().Add(loc.Asset)
 		}
 	}
 }
 
-func (h *horRegRec) processDomainRecord(e *et.Event, orgs []*oamorg.Organization, locs []*oamcon.Location) {
+func (h *horRegRec) processDomainRecord(e *et.Event, orgs []*dbt.Entity, locs []*dbt.Entity) {
 	// check if the domain record / registered domain name is in scope
 	if _, conf := e.Session.Scope().IsAssetInScope(e.Entity.Asset, 0); conf > 0 {
 		for _, o := range orgs {
-			e.Session.Scope().Add(o)
+			e.Session.Scope().Add(o.Asset)
 		}
 		for _, loc := range locs {
-			e.Session.Scope().Add(loc)
+			e.Session.Scope().Add(loc.Asset)
 		}
 		return
 	}
 }
 
-func (h *horRegRec) processIPNetRecord(e *et.Event, orgs []*oamorg.Organization, locs []*oamcon.Location) {
+func (h *horRegRec) processIPNetRecord(e *et.Event, orgs []*dbt.Entity, locs []*dbt.Entity) {
 	// check if the ipnet record / registered netblock is in scope
 	if _, conf := e.Session.Scope().IsAssetInScope(e.Entity.Asset, 0); conf > 0 {
 		for _, o := range orgs {
-			e.Session.Scope().Add(o)
+			e.Session.Scope().Add(o.Asset)
 		}
 		for _, loc := range locs {
-			e.Session.Scope().Add(loc)
+			e.Session.Scope().Add(loc.Asset)
 		}
 		return
 	}
 
 	var found bool
 	for _, o := range orgs {
-		if _, conf := e.Session.Scope().IsAssetInScope(o, 0); conf > 0 {
+		if _, conf := e.Session.Scope().IsAssetInScope(o.Asset, 0); conf > 0 {
 			found = true
 			break
 		}
@@ -221,7 +172,7 @@ func (h *horRegRec) processIPNetRecord(e *et.Event, orgs []*oamorg.Organization,
 
 	if !found {
 		for _, loc := range locs {
-			if _, conf := e.Session.Scope().IsAssetInScope(loc, 0); conf > 0 {
+			if _, conf := e.Session.Scope().IsAssetInScope(loc.Asset, 0); conf > 0 {
 				found = true
 				break
 			}
@@ -234,10 +185,10 @@ func (h *horRegRec) processIPNetRecord(e *et.Event, orgs []*oamorg.Organization,
 			e.Session.Scope().AddCIDR(iprec.CIDR.String())
 		}
 		for _, o := range orgs {
-			e.Session.Scope().Add(o)
+			e.Session.Scope().Add(o.Asset)
 		}
 		for _, loc := range locs {
-			e.Session.Scope().Add(loc)
+			e.Session.Scope().Add(loc.Asset)
 		}
 	}
 }

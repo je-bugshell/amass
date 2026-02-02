@@ -32,25 +32,12 @@ func (h *horContact) check(e *et.Event) error {
 		return nil
 	}
 
-	if ents, err := h.plugin.getContactRecordLocations(e, e.Entity); err == nil && len(ents) > 0 {
-		for _, ent := range ents {
-			if assocs := h.lookup(e, ent); len(assocs) > 0 {
-				for _, assoc := range assocs {
-					if assoc.ScopeChange {
-						e.Session.Log().Info(assoc.Rationale)
-					}
-				}
-			}
-		}
-	}
-
-	if ents, err := h.plugin.getContactRecordOrganizations(e, e.Entity); err == nil && len(ents) > 0 {
-		for _, ent := range ents {
-			if assocs := h.lookup(e, ent); len(assocs) > 0 {
-				for _, assoc := range assocs {
-					if assoc.ScopeChange {
-						e.Session.Log().Info(assoc.Rationale)
-					}
+	orgs, locs := h.plugin.lookupContactRecordOrgsAndLocations(e.Session, e.Entity)
+	for _, ent := range append(orgs, locs...) {
+		if assocs := h.lookup(e, ent); len(assocs) > 0 {
+			for _, assoc := range assocs {
+				if assoc.ScopeChange {
+					e.Session.Log().Info(assoc.Rationale)
 				}
 			}
 		}
