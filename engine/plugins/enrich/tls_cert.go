@@ -66,7 +66,7 @@ func (te *tlsexpand) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       te,
 		Name:         te.name,
-		Position:     10,
+		Position:     2,
 		MaxInstances: support.MidHandlerInstances,
 		Transforms:   te.transforms,
 		EventType:    oam.TLSCertificate,
