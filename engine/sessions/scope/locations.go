@@ -49,6 +49,8 @@ func (s *Scope) matchesLocation(loc *oamcon.Location, conf int) (oam.Asset, int)
 		return nil, 0
 	}
 
+	var bconf int
+	var best oam.Asset
 	for _, loc2 := range s.Locations() {
 		if loc.BuildingNumber != loc2.BuildingNumber {
 			continue
@@ -68,9 +70,10 @@ func (s *Scope) matchesLocation(loc *oamcon.Location, conf int) (oam.Asset, int)
 			Mismatch: -0.5,
 		}
 
-		if sim := strutil.Similarity(lstr1, lstr2, swg); sim >= float64(conf) {
-			return loc2, int(math.Round(sim))
+		if sim := strutil.Similarity(lstr1, lstr2, swg); sim >= float64(conf) && sim > float64(bconf) {
+			best = loc2
+			bconf = int(math.Round(sim))
 		}
 	}
-	return nil, 0
+	return best, bconf
 }

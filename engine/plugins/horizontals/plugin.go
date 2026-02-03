@@ -28,6 +28,7 @@ type horizPlugin struct {
 	horaddr    *horaddr
 	horContact *horContact
 	horRegRec  *horRegRec
+	horTlsCert *horTlsCert
 	source     *et.Source
 }
 
@@ -144,6 +145,23 @@ func (h *horizPlugin) Start(r et.Registry) error {
 		return err
 	}
 
+	h.horTlsCert = &horTlsCert{
+		name:   h.name + "-TLS-Certificate-Handler",
+		plugin: h,
+	}
+	if err := r.RegisterHandler(&et.Handler{
+		Plugin:       h,
+		Name:         h.horTlsCert.name,
+		Position:     10,
+		Exclusive:    true,
+		MaxInstances: support.MaxHandlerInstances,
+		Transforms:   []string{string(oam.TLSCertificate)},
+		EventType:    oam.TLSCertificate,
+		Callback:     h.horTlsCert.check,
+	}); err != nil {
+		return err
+	}
+
 	h.log.Info("Plugin started")
 	return nil
 }
@@ -176,6 +194,32 @@ func (h *horizPlugin) submitIPAddress(e *et.Event, asset *oamnet.IPAddress, src 
 			Session: e.Session,
 		})
 	}
+}
+
+func (h *horizPlugin) getContactRecord(sess et.Session, ent *dbt.Entity, label string) (*dbt.Entity, error) {
+	since, err := support.TTLStartTime(sess.Config(),
+		string(ent.Asset.AssetType()), string(oam.ContactRecord), h.name)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancel := context.WithTimeout(sess.Ctx(), 5*time.Second)
+	defer cancel()
+
+	edges, err := sess.DB().OutgoingEdges(ctx, ent, since, label)
+	if err != nil || len(edges) == 0 {
+		return nil, errors.New("failed to obtain the contact record")
+	}
+
+	to, err := sess.DB().FindEntityById(ctx, edges[0].ToEntity.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	if _, valid := to.Asset.(*oamcon.ContactRecord); valid {
+		return to, nil
+	}
+	return nil, errors.New("failed to cast the ContactRecord entity")
 }
 
 func (h *horizPlugin) lookupContactRecordOrgsAndLocations(sess et.Session, cr *dbt.Entity) ([]*dbt.Entity, []*dbt.Entity) {
@@ -321,4 +365,36 @@ func (h *horizPlugin) getOrganizationLocations(sess et.Session, o *dbt.Entity) (
 		return nil, errors.New("failed to extract the locations")
 	}
 	return results, nil
+}
+
+func (h *horizPlugin) addASNetblocksToScope(sess et.Session, asn int) {
+	ctx, cancel := context.WithTimeout(sess.Ctx(), 30*time.Second)
+	defer cancel()
+
+	var as *dbt.Entity
+	if ents, err := sess.DB().FindEntitiesByContent(ctx, oam.AutonomousSystem, time.Time{}, 1, dbt.ContentFilters{
+		"number": asn,
+	}); err == nil && len(ents) == 1 {
+		as = ents[0]
+	}
+	if as == nil {
+		return
+	}
+
+	since, err := support.TTLStartTime(sess.Config(),
+		string(oam.AutonomousSystem), string(oam.Netblock), h.name)
+	if err != nil {
+		return
+	}
+
+	if edges, err := sess.DB().OutgoingEdges(ctx, as, since, "announces"); err == nil && len(edges) > 0 {
+		for _, edge := range edges {
+			to, err := sess.DB().FindEntityById(ctx, edge.ToEntity.ID)
+			if err != nil {
+				continue
+			}
+			// add the announced netblock to the scope
+			_ = sess.Scope().Add(to.Asset)
+		}
+	}
 }

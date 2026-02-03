@@ -28,7 +28,7 @@ func (h *horaddr) Name() string {
 func (h *horaddr) check(e *et.Event) error {
 	ip, ok := e.Entity.Asset.(*oamnet.IPAddress)
 	if !ok {
-		return errors.New("failed to extract the IPAddress asset")
+		return errors.New("failed to cast the IPAddress asset")
 	}
 
 	if h.checkForPTR(e) {

@@ -299,7 +299,7 @@ func (s *Scope) towardsAssetsWithAssociation(asset *dbt.Entity) ([]*dbt.Entity, 
 		outRels = append(outRels, "registration")
 		outSince = s.ttlStartTime(oam.FQDN, oam.DomainRecord)
 		in = true
-		inRels = append(inRels, "node", "common_name", "san_dns_name")
+		inRels = append(inRels, "node", "common_name")
 		inSince = s.ttlStartTime(oam.FQDN, oam.FQDN)
 		if since := s.ttlStartTime(oam.FQDN,
 			oam.TLSCertificate); !since.IsZero() && since.Before(inSince) {
@@ -307,7 +307,7 @@ func (s *Scope) towardsAssetsWithAssociation(asset *dbt.Entity) ([]*dbt.Entity, 
 		}
 	case oam.IPAddress:
 		in = true
-		inRels = append(inRels, "contains", "san_ip_address")
+		inRels = append(inRels, "contains")
 		inSince = s.ttlStartTime(oam.IPAddress, oam.Netblock)
 		if since := s.ttlStartTime(oam.IPAddress,
 			oam.TLSCertificate); !since.IsZero() && since.Before(inSince) {

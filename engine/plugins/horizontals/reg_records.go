@@ -5,16 +5,11 @@
 package horizontals
 
 import (
-	"context"
-	"errors"
 	"fmt"
-	"time"
 
-	"github.com/owasp-amass/amass/v5/engine/plugins/support"
 	et "github.com/owasp-amass/amass/v5/engine/types"
 	dbt "github.com/owasp-amass/asset-db/types"
 	oam "github.com/owasp-amass/open-asset-model"
-	oamcon "github.com/owasp-amass/open-asset-model/contact"
 	oamreg "github.com/owasp-amass/open-asset-model/registration"
 )
 
@@ -47,7 +42,7 @@ func (h *horRegRec) check(e *et.Event) error {
 		return fmt.Errorf("asset type not supported: %s", t)
 	}
 
-	cr, err := h.getRegistrantContactRecord(e, rlabel)
+	cr, err := h.plugin.getContactRecord(e.Session, e.Entity, rlabel)
 	if err != nil {
 		return nil
 	}
@@ -68,55 +63,47 @@ func (h *horRegRec) check(e *et.Event) error {
 	return nil
 }
 
-func (h *horRegRec) getRegistrantContactRecord(e *et.Event, label string) (*dbt.Entity, error) {
-	since, err := support.TTLStartTime(e.Session.Config(),
-		string(e.Entity.Asset.AssetType()), string(oam.ContactRecord), h.plugin.name)
-	if err != nil {
-		return nil, err
-	}
-
-	ctx, cancel := context.WithTimeout(e.Session.Ctx(), 5*time.Second)
-	defer cancel()
-
-	edges, err := e.Session.DB().OutgoingEdges(ctx, e.Entity, since, label)
-	if err != nil || len(edges) == 0 {
-		return nil, errors.New("failed to obtain the registrant contact record")
-	}
-
-	to, err := e.Session.DB().FindEntityById(ctx, edges[0].ToEntity.ID)
-	if err != nil {
-		return nil, err
-	}
-
-	if _, valid := to.Asset.(*oamcon.ContactRecord); valid {
-		return to, nil
-	}
-	return nil, errors.New("failed to extract the registrant ContactRecord entity")
-}
-
 func (h *horRegRec) processAutnumRecord(e *et.Event, orgs []*dbt.Entity, locs []*dbt.Entity) {
 	// check if the autnum record / registered autonomous system is in scope
 	if _, conf := e.Session.Scope().IsAssetInScope(e.Entity.Asset, 0); conf > 0 {
 		for _, o := range orgs {
-			e.Session.Scope().Add(o.Asset)
+			_ = e.Session.Scope().Add(o.Asset)
 		}
 		for _, loc := range locs {
-			e.Session.Scope().Add(loc.Asset)
+			_ = e.Session.Scope().Add(loc.Asset)
 		}
 		return
 	}
 
-	var found bool
-	for _, o := range orgs {
-		if _, conf := e.Session.Scope().IsAssetInScope(o.Asset, 0); conf > 0 {
-			found = true
-			break
+	var confidence int
+	otype := string(oam.Organization)
+	if matches, err := e.Session.Config().CheckTransformations(otype, otype); err == nil && matches != nil {
+		if conf := matches.Confidence(otype); conf >= 0 {
+			confidence = conf
 		}
 	}
 
-	if !found {
+	var found bool
+	if confidence > 0 {
+		for _, o := range orgs {
+			if _, conf := e.Session.Scope().IsAssetInScope(o.Asset, confidence); conf >= confidence {
+				found = true
+				break
+			}
+		}
+	}
+
+	confidence = 0
+	ltype := string(oam.Location)
+	if matches, err := e.Session.Config().CheckTransformations(ltype, ltype); err == nil && matches != nil {
+		if conf := matches.Confidence(ltype); conf >= 0 {
+			confidence = conf
+		}
+	}
+
+	if !found && confidence > 0 {
 		for _, loc := range locs {
-			if _, conf := e.Session.Scope().IsAssetInScope(loc.Asset, 0); conf > 0 {
+			if _, conf := e.Session.Scope().IsAssetInScope(loc.Asset, confidence); conf >= confidence {
 				found = true
 				break
 			}
@@ -126,13 +113,14 @@ func (h *horRegRec) processAutnumRecord(e *et.Event, orgs []*dbt.Entity, locs []
 	if found {
 		// the autonomous system should be added to the scope
 		if an, valid := e.Entity.Asset.(*oamreg.AutnumRecord); valid {
-			e.Session.Scope().AddASN(an.Number)
+			_ = e.Session.Scope().AddASN(an.Number)
+			h.plugin.addASNetblocksToScope(e.Session, an.Number)
 		}
 		for _, o := range orgs {
-			e.Session.Scope().Add(o.Asset)
+			_ = e.Session.Scope().Add(o.Asset)
 		}
 		for _, loc := range locs {
-			e.Session.Scope().Add(loc.Asset)
+			_ = e.Session.Scope().Add(loc.Asset)
 		}
 	}
 }
@@ -141,10 +129,10 @@ func (h *horRegRec) processDomainRecord(e *et.Event, orgs []*dbt.Entity, locs []
 	// check if the domain record / registered domain name is in scope
 	if _, conf := e.Session.Scope().IsAssetInScope(e.Entity.Asset, 0); conf > 0 {
 		for _, o := range orgs {
-			e.Session.Scope().Add(o.Asset)
+			_ = e.Session.Scope().Add(o.Asset)
 		}
 		for _, loc := range locs {
-			e.Session.Scope().Add(loc.Asset)
+			_ = e.Session.Scope().Add(loc.Asset)
 		}
 		return
 	}
@@ -154,10 +142,10 @@ func (h *horRegRec) processIPNetRecord(e *et.Event, orgs []*dbt.Entity, locs []*
 	// check if the ipnet record / registered netblock is in scope
 	if _, conf := e.Session.Scope().IsAssetInScope(e.Entity.Asset, 0); conf > 0 {
 		for _, o := range orgs {
-			e.Session.Scope().Add(o.Asset)
+			_ = e.Session.Scope().Add(o.Asset)
 		}
 		for _, loc := range locs {
-			e.Session.Scope().Add(loc.Asset)
+			_ = e.Session.Scope().Add(loc.Asset)
 		}
 		return
 	}
@@ -182,13 +170,13 @@ func (h *horRegRec) processIPNetRecord(e *et.Event, orgs []*dbt.Entity, locs []*
 	if found {
 		// the autonomous system should be added to the scope
 		if iprec, valid := e.Entity.Asset.(*oamreg.IPNetRecord); valid {
-			e.Session.Scope().AddCIDR(iprec.CIDR.String())
+			_ = e.Session.Scope().AddCIDR(iprec.CIDR.String())
 		}
 		for _, o := range orgs {
-			e.Session.Scope().Add(o.Asset)
+			_ = e.Session.Scope().Add(o.Asset)
 		}
 		for _, loc := range locs {
-			e.Session.Scope().Add(loc.Asset)
+			_ = e.Session.Scope().Add(loc.Asset)
 		}
 	}
 }
