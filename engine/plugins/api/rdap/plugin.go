@@ -127,7 +127,7 @@ func (rd *rdapPlugin) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       rd,
 		Name:         rd.autnum.name,
-		Position:     10,
+		Position:     2,
 		Exclusive:    true,
 		MaxInstances: support.MidHandlerInstances,
 		Transforms:   rd.autnum.transforms,
@@ -171,7 +171,7 @@ func (rd *rdapPlugin) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       rd,
 		Name:         rd.ipnet.name,
-		Position:     10,
+		Position:     2,
 		Exclusive:    true,
 		MaxInstances: support.MidHandlerInstances,
 		Transforms:   rd.ipnet.transforms,
