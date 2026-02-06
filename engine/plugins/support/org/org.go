@@ -34,8 +34,11 @@ func CreateOrgAsset(sess et.Session, obj *dbt.Entity, rel oam.Relation, o *oamor
 		return nil, errors.New("missing the source")
 	}
 
-	var orgent *dbt.Entity
-	if obj != nil {
+	orgent, err := FindOrgByName(sess, o.Name, src)
+	if err != nil && o.LegalName != "" {
+		orgent, _ = FindOrgByLegalName(sess, o.LegalName, src)
+	}
+	if orgent == nil && obj != nil {
 		orgent = dedupChecks(sess, obj, o)
 	}
 
@@ -91,8 +94,7 @@ func genNormName(o *oamorg.Organization) string {
 
 func genStableOrgID(o *oamorg.Organization) string {
 	id := uuid.New().String()
-	jurisdiction := o.Jurisdiction
-	return fmt.Sprintf("%s:%s:%s", o.Name, jurisdiction, id)
+	return fmt.Sprintf("%s:%s", o.Name, id)
 }
 
 func createRelation(ctx context.Context, sess et.Session, obj *dbt.Entity, rel oam.Relation, subject *dbt.Entity, src *et.Source) error {
