@@ -64,7 +64,7 @@ func (r *txtHandler) store(e *et.Event, records []string) []*dbt.Entity {
 
 			o, err := org.CreateOrgAsset(e.Session, e.Entity,
 				&oamgen.SimpleRelation{Name: "verified_for"},
-				&oamorg.Organization{Name: name, Jurisdiction: "Unknown"}, r.plugin.source)
+				&oamorg.Organization{Name: name}, r.plugin.source)
 
 			if err == nil && o != nil {
 				orgs = append(orgs, o)

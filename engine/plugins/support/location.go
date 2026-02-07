@@ -12,6 +12,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/biter777/countries"
 	amasshttp "github.com/owasp-amass/amass/v5/internal/net/http"
 	"github.com/owasp-amass/open-asset-model/contact"
 )
@@ -51,6 +52,13 @@ func init() {
 	go postalServerHeartbeat()
 }
 
+func CountryToAlpha3Code(country string) string {
+	if code := countries.ByName(country); code.IsValid() {
+		return code.Alpha3()
+	}
+	return country
+}
+
 func StreetAddressToLocation(address string) *contact.Location {
 	if address == "" {
 		return nil
@@ -81,7 +89,7 @@ func StreetAddressToLocation(address string) *contact.Location {
 		case "postcode":
 			loc.PostalCode = part.Value
 		case "country":
-			loc.Country = part.Value
+			loc.Country = CountryToAlpha3Code(part.Value)
 		case "suburb":
 			fallthrough
 		case "city_district":

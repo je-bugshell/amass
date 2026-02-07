@@ -353,7 +353,11 @@ func (te *tlsexpand) storeContact(e *et.Event, c *tlsContact, asset *dbt.Entity,
 		return
 	}
 
-	jurisdiction := "Unknown"
+	var jurisdiction string
+	if len(ct.Country) > 0 {
+		jurisdiction = support.CountryToAlpha3Code(ct.Country[0])
+	}
+
 	if foundaddr && m.IsMatch(string(oam.Location)) {
 		var addr string
 		fields := [][]string{
@@ -371,7 +375,9 @@ func (te *tlsexpand) storeContact(e *et.Event, c *tlsContact, asset *dbt.Entity,
 		}
 
 		if loc := support.StreetAddressToLocation(strings.TrimSpace(addr)); loc != nil {
-			jurisdiction = fmt.Sprintf("%s:%s", loc.Province, loc.Country)
+			if loc.Country != "" {
+				jurisdiction = loc.Country
+			}
 
 			if a, err := e.Session.DB().CreateAsset(ctx, loc); err == nil && a != nil {
 				if edge, err := e.Session.DB().CreateEdge(ctx, &dbt.Edge{

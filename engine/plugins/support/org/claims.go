@@ -7,6 +7,7 @@ package org
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	et "github.com/owasp-amass/amass/v5/engine/types"
@@ -16,7 +17,7 @@ import (
 	oamorg "github.com/owasp-amass/open-asset-model/org"
 )
 
-func CreateOrgName(sess et.Session, orgent *dbt.Entity, name string, src *et.Source) (*dbt.Entity, error) {
+func CreateOrgNameClaim(sess et.Session, orgent *dbt.Entity, name string, src *et.Source) (*dbt.Entity, error) {
 	ctx, cancel := context.WithTimeout(sess.Ctx(), 30*time.Second)
 	defer cancel()
 
@@ -46,7 +47,7 @@ func CreateOrgName(sess et.Session, orgent *dbt.Entity, name string, src *et.Sou
 	return ident, nil
 }
 
-func FindOrgByName(sess et.Session, name string, src *et.Source) (*dbt.Entity, error) {
+func FindOrgByNameClaim(sess et.Session, name string, src *et.Source) (*dbt.Entity, error) {
 	ctx, cancel := context.WithTimeout(sess.Ctx(), 30*time.Second)
 	defer cancel()
 
@@ -75,7 +76,7 @@ func FindOrgByName(sess et.Session, name string, src *et.Source) (*dbt.Entity, e
 	return nil, fmt.Errorf("failed to obtain the Organization associated with Identifier - %s:%s", oamgen.OrganizationName, name)
 }
 
-func CreateOrgLegalName(sess et.Session, orgent *dbt.Entity, name string, src *et.Source) (*dbt.Entity, error) {
+func CreateOrgLegalNameClaim(sess et.Session, orgent *dbt.Entity, name string, src *et.Source) (*dbt.Entity, error) {
 	ctx, cancel := context.WithTimeout(sess.Ctx(), 30*time.Second)
 	defer cancel()
 
@@ -105,7 +106,7 @@ func CreateOrgLegalName(sess et.Session, orgent *dbt.Entity, name string, src *e
 	return ident, nil
 }
 
-func FindOrgByLegalName(sess et.Session, name string, src *et.Source) (*dbt.Entity, error) {
+func FindOrgByLegalNameClaim(sess et.Session, name string, src *et.Source) (*dbt.Entity, error) {
 	ctx, cancel := context.WithTimeout(sess.Ctx(), 30*time.Second)
 	defer cancel()
 
@@ -132,4 +133,66 @@ func FindOrgByLegalName(sess et.Session, name string, src *et.Source) (*dbt.Enti
 	}
 
 	return nil, fmt.Errorf("failed to obtain the Organization associated with Identifier - %s:%s", oamgen.LegalName, name)
+}
+
+func CreateOrgNormNameAndJurisdictionClaim(sess et.Session, orgent *dbt.Entity, jurisdiction string) error {
+	ctx, cancel := context.WithTimeout(sess.Ctx(), 10*time.Second)
+	defer cancel()
+
+	if _, err := sess.DB().CreateEntityProperty(ctx, orgent, &oamgen.SimpleProperty{
+		PropertyName:  "jurisdiction",
+		PropertyValue: jurisdiction,
+	}); err == nil {
+		return nil
+	}
+
+	return fmt.Errorf("failed to create the jurisdiction claim %s for organization %s", jurisdiction, orgent.Asset.Key())
+}
+
+func FindOrgByNormNameAndJurisdictionClaim(sess et.Session, norm, jurisdiction string) (*dbt.Entity, error) {
+	var country string
+	if parts := strings.Split(jurisdiction, "-"); len(parts) == 2 {
+		country = parts[0]
+	}
+
+	ctx, cancel := context.WithTimeout(sess.Ctx(), 10*time.Second)
+	defer cancel()
+
+	orgents, err := sess.DB().FindEntitiesByContent(ctx, oam.Organization, time.Time{}, 1, dbt.ContentFilters{
+		"name": norm,
+	})
+	if err != nil || len(orgents) == 0 {
+		return nil, fmt.Errorf("failed to obtain organizations with norm name %s", norm)
+	}
+
+	seconds := 10 * len(orgents)
+	octx, ocancel := context.WithTimeout(sess.Ctx(), time.Duration(seconds)*time.Second)
+	defer ocancel()
+
+	for _, orgent := range orgents {
+		tags, err := sess.DB().FindEntityTags(octx, orgent, time.Time{}, "jurisdiction")
+		if err != nil || len(tags) == 0 {
+			continue
+		}
+
+		for _, tag := range tags {
+			jc, valid := tag.Property.(*oamgen.SimpleProperty)
+			if !valid {
+				continue
+			}
+			jv := jc.PropertyValue
+
+			if strings.EqualFold(jurisdiction, jv) {
+				return orgent, nil
+			} else if country != "" && strings.EqualFold(country, jv) {
+				return orgent, nil
+			} else if parts := strings.Split(jv, "-"); len(parts) == 2 && strings.EqualFold(jurisdiction, parts[0]) {
+				return orgent, nil
+			} else if len(parts) == 2 && strings.EqualFold(country, parts[0]) {
+				return orgent, nil
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("failed to obtain the Organization associated with norm name %s and jurisdiction %s", norm, jurisdiction)
 }

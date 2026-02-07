@@ -28,16 +28,20 @@ func CreateOrgAsset(sess et.Session, obj *dbt.Entity, rel oam.Relation, o *oamor
 
 	if o == nil || o.Name == "" {
 		return nil, errors.New("missing the organization name")
-	} else if o.Jurisdiction == "" {
-		return nil, errors.New("missing the organization jurisdiction")
 	} else if src == nil {
 		return nil, errors.New("missing the source")
 	}
 
-	orgent, err := FindOrgByName(sess, o.Name, src)
+	orgent, err := FindOrgByNameClaim(sess, o.Name, src)
 	if err != nil && o.LegalName != "" {
-		orgent, _ = FindOrgByLegalName(sess, o.LegalName, src)
+		orgent, _ = FindOrgByLegalNameClaim(sess, o.LegalName, src)
 	}
+
+	normName := genNormName(o)
+	if o.Jurisdiction != "" {
+		orgent, _ = FindOrgByNormNameAndJurisdictionClaim(sess, normName, o.Jurisdiction)
+	}
+
 	if orgent == nil && obj != nil {
 		orgent = dedupChecks(sess, obj, o)
 	}
@@ -48,7 +52,7 @@ func CreateOrgAsset(sess et.Session, obj *dbt.Entity, rel oam.Relation, o *oamor
 		defer cancel()
 
 		var err error
-		o.Name = genNormName(o)
+		o.Name = normName
 		o.ID = genStableOrgID(o)
 		orgent, err = sess.DB().CreateAsset(ctx, o)
 		if err != nil || orgent == nil {
@@ -61,13 +65,15 @@ func CreateOrgAsset(sess et.Session, obj *dbt.Entity, rel oam.Relation, o *oamor
 		})
 	}
 
-	// create name claims provided by the caller
-	if ident, err := CreateOrgName(sess, orgent, dName, src); err != nil || ident == nil {
-		return nil, errors.New("failed to create the Identifier asset")
-	}
-	if o.LegalName != "" {
-		if ident, err := CreateOrgLegalName(sess, orgent, o.LegalName, src); err != nil || ident == nil {
-			return nil, errors.New("failed to create the Identifier asset")
+	// create name and jurisdiction claims provided by the caller
+	if orgent != nil {
+		_, _ = CreateOrgNameClaim(sess, orgent, dName, src)
+
+		if o.LegalName != "" {
+			_, _ = CreateOrgLegalNameClaim(sess, orgent, o.LegalName, src)
+		}
+		if o.Jurisdiction != "" {
+			_ = CreateOrgNormNameAndJurisdictionClaim(sess, orgent, o.Jurisdiction)
 		}
 	}
 

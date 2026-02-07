@@ -66,8 +66,14 @@ func (g *gleif) updateOrgFromLEIRecord(e *et.Event, orgent *dbt.Entity, lei *LEI
 	}
 	_ = g.addIdentifiersToOrg(e, orgent, oamgen.OrganizationName, otherNames, conf)
 
+	if jur := lei.Attributes.Entity.Jurisdiction; jur != "" {
+		o.Jurisdiction = jur
+		if parts := strings.Split(jur, "-"); len(parts) == 2 {
+			o.Jurisdiction = fmt.Sprintf("%s-%s", support.CountryToAlpha3Code(parts[0]), parts[1])
+		}
+	}
+
 	o.FoundingDate = lei.Attributes.Entity.CreationDate
-	o.Jurisdiction = lei.Attributes.Entity.Jurisdiction
 	o.RegistrationID = lei.Attributes.Entity.RegisteredAs
 	if lei.Attributes.Entity.Status == "ACTIVE" {
 		o.Active = true
