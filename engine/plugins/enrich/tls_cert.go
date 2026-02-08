@@ -353,11 +353,6 @@ func (te *tlsexpand) storeContact(e *et.Event, c *tlsContact, asset *dbt.Entity,
 		return
 	}
 
-	var jurisdiction string
-	if len(ct.Country) > 0 {
-		jurisdiction = support.CountryToAlpha3Code(ct.Country[0])
-	}
-
 	if foundaddr && m.IsMatch(string(oam.Location)) {
 		var addr string
 		fields := [][]string{
@@ -375,10 +370,6 @@ func (te *tlsexpand) storeContact(e *et.Event, c *tlsContact, asset *dbt.Entity,
 		}
 
 		if loc := support.StreetAddressToLocation(strings.TrimSpace(addr)); loc != nil {
-			if loc.Country != "" {
-				jurisdiction = loc.Country
-			}
-
 			if a, err := e.Session.DB().CreateAsset(ctx, loc); err == nil && a != nil {
 				if edge, err := e.Session.DB().CreateEdge(ctx, &dbt.Edge{
 					Relation:   &general.SimpleRelation{Name: "location"},
@@ -431,7 +422,7 @@ func (te *tlsexpand) storeContact(e *et.Event, c *tlsContact, asset *dbt.Entity,
 	if m.IsMatch(string(oam.Organization)) && len(ct.Organization) > 0 && ct.Organization[0] != "" {
 		orgent, err := org.CreateOrgAsset(e.Session, cr,
 			&general.SimpleRelation{Name: "organization"},
-			&oamorg.Organization{Name: ct.Organization[0], Jurisdiction: jurisdiction}, src)
+			&oamorg.Organization{Name: ct.Organization[0]}, src)
 
 		if err == nil && orgent != nil {
 			o := orgent.Asset.(*oamorg.Organization)

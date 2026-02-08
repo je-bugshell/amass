@@ -134,7 +134,7 @@ func (ro *relatedOrgs) store(e *et.Event, ident *dbt.Entity, parent *LEIRecord, 
 	if parent != nil {
 		parentorg := &oamorg.Organization{
 			Name:           parent.Attributes.Entity.LegalName.Name,
-			Jurisdiction:   ro.plugin.modifyJurisdiction(parent.Attributes.Entity.Jurisdiction),
+			Jurisdiction:   parent.Attributes.Entity.Jurisdiction,
 			RegistrationID: parent.Attributes.Entity.RegisteredAs,
 		}
 
@@ -150,7 +150,7 @@ func (ro *relatedOrgs) store(e *et.Event, ident *dbt.Entity, parent *LEIRecord, 
 	for _, child := range children {
 		childorg := &oamorg.Organization{
 			Name:           child.Attributes.Entity.LegalName.Name,
-			Jurisdiction:   ro.plugin.modifyJurisdiction(child.Attributes.Entity.Jurisdiction),
+			Jurisdiction:   child.Attributes.Entity.Jurisdiction,
 			RegistrationID: child.Attributes.Entity.RegisteredAs,
 		}
 

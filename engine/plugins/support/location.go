@@ -12,9 +12,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/biter777/countries"
+	biter "github.com/biter777/countries"
 	amasshttp "github.com/owasp-amass/amass/v5/internal/net/http"
 	"github.com/owasp-amass/open-asset-model/contact"
+	pioz "github.com/pioz/countries"
 )
 
 type parsedComponent struct {
@@ -52,9 +53,9 @@ func init() {
 	go postalServerHeartbeat()
 }
 
-func CountryToAlpha3Code(country string) string {
-	if code := countries.ByName(country); code.IsValid() {
-		return code.Alpha3()
+func CountryToAlpha2Code(country string) string {
+	if code := biter.ByName(country); code.IsValid() {
+		return code.Alpha2()
 	}
 	return country
 }
@@ -89,7 +90,7 @@ func StreetAddressToLocation(address string) *contact.Location {
 		case "postcode":
 			loc.PostalCode = part.Value
 		case "country":
-			loc.Country = CountryToAlpha3Code(part.Value)
+			loc.Country = CountryToAlpha2Code(part.Value)
 		case "suburb":
 			fallthrough
 		case "city_district":
@@ -98,6 +99,16 @@ func StreetAddressToLocation(address string) *contact.Location {
 			}
 		}
 	}
+
+	// attempt to convert the province to its two-letter abbreviation
+	if loc.Country != "" && len(loc.Province) > 2 {
+		if c := pioz.Get(loc.Country); c != nil {
+			if sub := c.SubdivisionByName(loc.Province); sub.Type != "" {
+				loc.Province = sub.Code
+			}
+		}
+	}
+
 	return loc
 }
 

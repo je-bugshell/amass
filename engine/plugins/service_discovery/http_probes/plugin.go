@@ -60,7 +60,7 @@ func (hp *httpProbing) Start(r et.Registry) error {
 		Name:         hp.fqdnend.name,
 		Position:     41,
 		Exclusive:    true,
-		MaxInstances: support.MinHandlerInstances,
+		MaxInstances: support.MidHandlerInstances,
 		Transforms: []string{
 			string(oam.Service),
 			string(oam.TLSCertificate),
@@ -80,7 +80,7 @@ func (hp *httpProbing) Start(r et.Registry) error {
 		Name:         hp.ipaddr.name,
 		Position:     42,
 		Exclusive:    true,
-		MaxInstances: support.MinHandlerInstances,
+		MaxInstances: support.MidHandlerInstances,
 		Transforms: []string{
 			string(oam.Service),
 			string(oam.TLSCertificate),
