@@ -42,7 +42,7 @@ func CreateOrgAsset(sess et.Session, obj *dbt.Entity, rel oam.Relation, o *oamor
 	if o.Jurisdiction != "" {
 		// attempt to normalize the jurisdiction country
 		if code := countries.ByName(o.Jurisdiction); code.IsValid() {
-			o.Jurisdiction = code.Alpha3()
+			o.Jurisdiction = code.Alpha2()
 		}
 		if o.RegistrationID != "" {
 			orgent, _ = FindOrgByJurisdictionAndRegistrationIDClaim(sess, o.Jurisdiction, o.RegistrationID)

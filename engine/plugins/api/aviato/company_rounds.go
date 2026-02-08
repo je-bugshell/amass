@@ -434,10 +434,7 @@ func (cr *companyRounds) createOrgInvestors(e *et.Event, round *companyFundingRo
 		}
 
 		// create the Organization asset
-		o := &oamorg.Organization{
-			Name:         investor.Name,
-			Jurisdiction: investor.Country,
-		}
+		o := &oamorg.Organization{Name: investor.Name}
 		orgent, err = org.CreateOrgAsset(e.Session, nil, nil, o, cr.plugin.source)
 		if err != nil {
 			msg := fmt.Sprintf("failed to create the Organization asset for %s: %s", o.Name, err)
