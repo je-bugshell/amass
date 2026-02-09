@@ -58,6 +58,10 @@ func dedupChecks(sess et.Session, obj *dbt.Entity, o *oamorg.Organization) *dbt.
 		}
 	}
 
+	if org, found := nameExistsInSessionScope(sess, o); found {
+		return org
+	}
+
 	return nil
 }
 
@@ -80,6 +84,26 @@ func nameExistsInContactRecord(sess et.Session, cr *dbt.Entity, names []string) 
 			}
 		}
 	}
+	return nil, false
+}
+
+func nameExistsInSessionScope(sess et.Session, o *oamorg.Organization) (*dbt.Entity, bool) {
+	ctx, cancel := context.WithTimeout(sess.Ctx(), 10*time.Second)
+	defer cancel()
+
+	ents, err := sess.DB().FindEntitiesByContent(ctx, oam.Organization, time.Time{}, 0, dbt.ContentFilters{
+		"name": o.Name,
+	})
+	if err != nil || len(ents) == 0 {
+		return nil, false
+	}
+
+	for _, ent := range ents {
+		if _, err := sess.Scope().IsAssociated(&et.Association{Submission: ent}); err == nil {
+			return ent, true
+		}
+	}
+
 	return nil, false
 }
 
