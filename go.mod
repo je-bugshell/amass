@@ -26,7 +26,7 @@ require (
 	github.com/miekg/dns v1.1.72
 	github.com/nyaruka/phonenumbers v1.6.9
 	github.com/openrdap/rdap v0.9.1
-	github.com/owasp-amass/asset-db v0.23.2-0.20260217030123-c04b6609d5e9
+	github.com/owasp-amass/asset-db v0.23.2-0.20260219043724-1752872f17ee
 	github.com/owasp-amass/open-asset-model v0.15.0
 	github.com/owasp-amass/resolve v0.9.7-0.20260129060429-238e495debf3
 	github.com/pioz/countries v0.2.2
@@ -38,7 +38,7 @@ require (
 	golang.org/x/net v0.50.0
 	golang.org/x/time v0.14.0
 	gopkg.in/yaml.v3 v3.0.1
-	modernc.org/sqlite v1.45.0
+	modernc.org/sqlite v1.46.1
 	mvdan.cc/xurls/v2 v2.6.0
 )
 
@@ -98,7 +98,7 @@ require (
 	github.com/zeebo/xxh3 v1.1.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	golang.org/x/crypto v0.48.0 // indirect
-	golang.org/x/exp v0.0.0-20260212183809-81e46e3db34a // indirect
+	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa // indirect
 	golang.org/x/mod v0.33.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
@@ -110,7 +110,7 @@ require (
 	google.golang.org/grpc v1.78.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gorm.io/gorm v1.31.1 // indirect
-	modernc.org/libc v1.67.7 // indirect
+	modernc.org/libc v1.68.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
