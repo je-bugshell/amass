@@ -31,6 +31,15 @@ type ListSessionsResponse struct {
 	SessionTokens []string `json:"sessionTokens"`
 }
 
+type SessionStatsResponse struct {
+	WorkItemsCompleted int `json:"workItemsCompleted"`
+	WorkItemsTotal     int `json:"workItemsTotal"`
+}
+
+type ScopeResponse struct {
+	Data []json.RawMessage `json:"data"`
+}
+
 type AddAssetResponse struct {
 	EntityID string `json:"entityID"`
 }
@@ -60,12 +69,32 @@ func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
 	})
 }
 
+// healthCheck godoc
+//
+// @Summary      Health check
+// @Description  Returns a simple health indicator that the Amass Engine API is running.
+// @Tags         system
+// @Produce      json
+// @Success      200  {object}  HealthCheckResponse
+// @Router       /v1/health [get]
 func (s *Server) healthCheck(w http.ResponseWriter, r *http.Request) {
 	resp := HealthCheckResponse{Result: "Amass Engine OK"}
 
 	writeJSON(w, http.StatusOK, resp)
 }
 
+// createSessionHandler godoc
+//
+// @Summary      Create a new engine session
+// @Description  Creates a new Amass engine session using the provided configuration JSON.
+// @Tags         sessions
+// @Accept       json
+// @Produce      json
+// @Param        config  body      config.Config  true  "Engine configuration"
+// @Success      201     {object}  CreateSessionResponse
+// @Failure      400     {object}  ErrorResponse  "Invalid JSON or invalid configuration"
+// @Failure      500     {object}  ErrorResponse  "Failed to create session"
+// @Router       /v1/sessions [post]
 func (s *Server) createSessionHandler(w http.ResponseWriter, r *http.Request) {
 	raw, err := readRawJSON(r)
 	if err != nil {
@@ -99,6 +128,15 @@ func (s *Server) createSessionHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// listSessionsHandler godoc
+//
+// @Summary      List active sessions
+// @Description  Returns the session tokens for all currently active sessions.
+// @Tags         sessions
+// @Produce      json
+// @Success      200  {object}  ListSessionsResponse
+// @Failure      404  {object}  ErrorResponse  "Zero sessions found"
+// @Router       /v1/sessions/list [get]
 func (s *Server) listSessionsHandler(w http.ResponseWriter, r *http.Request) {
 	sessions := s.mgr.GetSessions()
 	if len(sessions) == 0 {
@@ -114,6 +152,16 @@ func (s *Server) listSessionsHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
+// terminateSessionHandler godoc
+//
+// @Summary      Terminate a session
+// @Description  Cancels an active session. Returns no content on success.
+// @Tags         sessions
+// @Param        session_token  path  string  true  "Session token (UUID)"
+// @Success      204
+// @Failure      400  {object}  ErrorResponse  "Invalid session token"
+// @Failure      404  {object}  ErrorResponse  "Session not found"
+// @Router       /v1/sessions/{session_token} [delete]
 func (s *Server) terminateSessionHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	sid := vars["session_token"]
@@ -136,6 +184,17 @@ func (s *Server) terminateSessionHandler(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// getStatsHandler godoc
+//
+// @Summary      Get session statistics
+// @Description  Returns the current runtime statistics for a session.
+// @Tags         sessions
+// @Produce      json
+// @Param        session_token  path  string  true  "Session token (UUID)"
+// @Success      200  {object}  SessionStatsResponse
+// @Failure      400  {object}  ErrorResponse  "Invalid session token"
+// @Failure      404  {object}  ErrorResponse  "Session not found"
+// @Router       /v1/sessions/{session_token}/stats [get]
 func (s *Server) getStatsHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	sid := vars["session_token"]
@@ -160,6 +219,18 @@ func (s *Server) getStatsHandler(w http.ResponseWriter, r *http.Request) {
 	stats.RUnlock()
 }
 
+// getScopeHandler godoc
+//
+// @Summary      Get session scope for an asset type
+// @Description  Returns the scoped assets for the given session and asset type as an array of raw OAM JSON objects.
+// @Tags         scope
+// @Produce      json
+// @Param        session_token  path  string  true  "Session token (UUID)"
+// @Param        asset_type     path  string  true  "Asset type (e.g., autonomoussystem, fqdn, ipaddress, netblock, location, organization)"
+// @Success      200  {object}  ScopeResponse  "Response contains a 'data' array of raw OAM JSON"
+// @Failure      400  {object}  ErrorResponse  "Invalid session token"
+// @Failure      404  {object}  ErrorResponse  "Session not found or scope not found for asset type"
+// @Router       /v1/sessions/{session_token}/scope/{asset_type} [get]
 func (s *Server) getScopeHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	sid := vars["session_token"]
@@ -228,7 +299,21 @@ func (s *Server) getScopeHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, response)
 }
 
-// Single typed add: raw OAM JSON in body, asset type in path.
+// addAssetTypedHandler godoc
+//
+// @Summary      Add a single asset (typed by path)
+// @Description  Submits a single OAM asset to the session. The asset type is provided in the URL path; the request body is a raw OAM JSON object without a 'type' field.
+// @Tags         assets
+// @Accept       json
+// @Produce      json
+// @Param        session_token  path  string          true  "Session token (UUID)"
+// @Param        asset_type     path  string          true  "Asset type (e.g., autonomous_system, fqdn, ipaddress, netblock, location, organization)"
+// @Param        asset          body  json.RawMessage true  "Raw OAM JSON object (without 'type')"
+// @Success      200            {object}  AddAssetResponse
+// @Failure      400            {object}  ErrorResponse  "Invalid session token, invalid JSON, or invalid asset object"
+// @Failure      404            {object}  ErrorResponse  "Session not found"
+// @Failure      500            {object}  ErrorResponse  "Failed to submit the asset"
+// @Router       /v1/sessions/{session_token}/assets/{asset_type} [post]
 func (s *Server) addAssetTypedHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	sid := vars["session_token"]
@@ -276,6 +361,22 @@ func (s *Server) addAssetTypedHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// addAssetsBulkHandler godoc
+//
+// @Summary      Add assets in bulk (typed by path)
+// @Description  Submits multiple OAM assets to the session in one request. The asset type is provided in the URL path. Each item in 'items' is a raw OAM JSON object without a 'type' field.
+// @Tags         assets
+// @Accept       json
+// @Produce      json
+// @Param        session_token  path  string               true  "Session token (UUID)"
+// @Param        asset_type     path  string               true  "Asset type (e.g., autonomous_system, fqdn, ipaddress, netblock, location, organization)"
+// @Param        request        body  BulkAddAssetsRequest true  "Bulk add request payload"
+// @Success      200            {object}  BulkAddAssetsResponse
+// @Failure      400            {object}  ErrorResponse  "Invalid session token, invalid JSON, empty items, or no valid items"
+// @Failure      404            {object}  ErrorResponse  "Session not found"
+// @Failure      413            {object}  ErrorResponse  "Too many items in bulk request"
+// @Failure      500            {object}  BulkAddAssetsResponse  "Server failure (response includes ingested/stored/failed)"
+// @Router       /v1/sessions/{session_token}/assets/{asset_type}:bulk [post]
 func (s *Server) addAssetsBulkHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	sid := vars["session_token"]

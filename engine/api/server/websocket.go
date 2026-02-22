@@ -20,6 +20,19 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin:     func(r *http.Request) bool { return true },
 }
 
+// wsLogsHandler godoc
+//
+// @Summary      Stream session logs (WebSocket)
+// @Description  Upgrades the HTTP connection to a WebSocket and streams session log lines as UTF-8 text frames.
+// @Description  The server sends periodic ping frames (~30s) and expects pong responses; idle connections may be closed.
+// @Tags         sessions
+// @Param        session_token  path  string  true  "Session token (UUID)"
+// @Success      101  "Switching Protocols (WebSocket upgrade)"
+// @Failure      400  {object}  ErrorResponse  "Invalid session token"
+// @Failure      404  {object}  ErrorResponse  "Session not found"
+// @Router       /v1/sessions/{session_token}/ws/logs [get]
+// @Header  	 101  {string}  Upgrade     "websocket"
+// @Header  	 101  {string}  Connection  "Upgrade"
 func (s *Server) wsLogsHandler(w http.ResponseWriter, r *http.Request) {
 	sid := mux.Vars(r)["session_token"]
 

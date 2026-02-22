@@ -44,6 +44,12 @@ type Server struct {
 	srv    *http.Server
 }
 
+type ErrorResponse struct {
+	Error   string `json:"error"`
+	Details string `json:"details,omitempty"`
+	Code    int    `json:"code"`
+}
+
 func NewServer(logger *slog.Logger, d et.Dispatcher, mgr et.SessionManager) *Server {
 	r := mux.NewRouter()
 
@@ -150,17 +156,10 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 }
 
 func writeError(w http.ResponseWriter, status int, msg string, err error) {
-	type resp struct {
-		Error   string `json:"error"`
-		Details string `json:"details,omitempty"`
-		Code    int    `json:"code"`
-	}
-
-	out := resp{Error: msg, Code: status}
+	out := ErrorResponse{Error: msg, Code: status}
 	if err != nil {
 		out.Details = err.Error()
 	}
-
 	writeJSON(w, status, out)
 }
 
