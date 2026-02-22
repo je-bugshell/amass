@@ -5,10 +5,12 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
 	"path"
+	"time"
 
 	"github.com/owasp-amass/amass/v5/engine/api/client"
 )
@@ -33,10 +35,16 @@ func main() {
 		return
 	}
 
-	c := client.NewClient("http://" + hostname + ":4000")
+	c, err := client.NewClient("http://" + hostname + ":4000")
+	if err != nil {
+		os.Exit(1)
+	}
 	defer c.Close()
 
-	if !c.HealthCheck() {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	if !c.HealthCheck(ctx) {
 		// a failure to respond indicates that the server is not yet available
 		os.Exit(1)
 	}

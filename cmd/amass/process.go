@@ -5,18 +5,26 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
+	"time"
 
 	"github.com/owasp-amass/amass/v5/engine/api/client"
 )
 
 func engineIsRunning() bool {
-	c := client.NewClient("http://127.0.0.1:4000")
+	c, err := client.NewClient("http://127.0.0.1:4000")
+	if err != nil {
+		return false
+	}
 	defer c.Close()
 
-	return c.HealthCheck()
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	return c.HealthCheck(ctx)
 }
 
 func startEngine() error {

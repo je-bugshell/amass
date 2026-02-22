@@ -6,6 +6,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -55,12 +56,12 @@ type BulkAddAssetsResponse struct {
 }
 
 // NewClient returns a pointer to a Client struct for the specified server URL.
-func NewClient(url string) *Client {
+func NewClient(url string) (*Client, error) {
 	return &Client{
 		base:       url,
 		httpClient: http.Client{},
 		done:       make(chan struct{}),
-	}
+	}, nil
 }
 
 // Close terminates any open connections associated with the client.
@@ -69,8 +70,8 @@ func (c *Client) Close() {
 }
 
 // HealthCheck returns true when the client was able to reach the server.
-func (c *Client) HealthCheck() bool {
-	req, _ := http.NewRequest(http.MethodGet, c.base+"/v1/health", nil)
+func (c *Client) HealthCheck(ctx context.Context) bool {
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, c.base+"/v1/health", nil)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -82,13 +83,13 @@ func (c *Client) HealthCheck() bool {
 }
 
 // Creates a new session on the server with the provided configuration.
-func (c *Client) CreateSession(config *config.Config) (uuid.UUID, error) {
+func (c *Client) CreateSession(ctx context.Context, config *config.Config) (uuid.UUID, error) {
 	raw, err := json.Marshal(config)
 	if err != nil {
 		return uuid.UUID{}, err
 	}
 
-	req, _ := http.NewRequest(http.MethodPost, c.base+"/v1/sessions", bytes.NewReader(raw))
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, c.base+"/v1/sessions", bytes.NewReader(raw))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.httpClient.Do(req)
@@ -114,8 +115,8 @@ func (c *Client) CreateSession(config *config.Config) (uuid.UUID, error) {
 }
 
 // Lists the active session and associated tokens on the server.
-func (c *Client) ListSessions() ([]uuid.UUID, error) {
-	req, _ := http.NewRequest(http.MethodGet, c.base+"/v1/sessions/list", nil)
+func (c *Client) ListSessions(ctx context.Context) ([]uuid.UUID, error) {
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, c.base+"/v1/sessions/list", nil)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -148,8 +149,8 @@ func (c *Client) ListSessions() ([]uuid.UUID, error) {
 }
 
 // Terminates the session associated with the provided token.
-func (c *Client) TerminateSession(token uuid.UUID) error {
-	req, _ := http.NewRequest(http.MethodDelete, c.base+"/v1/sessions/"+token.String(), nil)
+func (c *Client) TerminateSession(ctx context.Context, token uuid.UUID) error {
+	req, _ := http.NewRequestWithContext(ctx, http.MethodDelete, c.base+"/v1/sessions/"+token.String(), nil)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -168,8 +169,8 @@ func (c *Client) TerminateSession(token uuid.UUID) error {
 }
 
 // Retrieves statistics for the session associated with the provided token.
-func (c *Client) SessionStats(token uuid.UUID) (*et.SessionStats, error) {
-	req, _ := http.NewRequest(http.MethodGet, c.base+"/v1/sessions/"+token.String()+"/stats", nil)
+func (c *Client) SessionStats(ctx context.Context, token uuid.UUID) (*et.SessionStats, error) {
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, c.base+"/v1/sessions/"+token.String()+"/stats", nil)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -193,11 +194,11 @@ func (c *Client) SessionStats(token uuid.UUID) (*et.SessionStats, error) {
 }
 
 // Retrieves scope for the session associated with the provided token.
-func (c *Client) SessionScope(token uuid.UUID, atype oam.AssetType) ([]oam.Asset, error) {
+func (c *Client) SessionScope(ctx context.Context, token uuid.UUID, atype oam.AssetType) ([]oam.Asset, error) {
 	sessionID := token.String()
 	atypestr := strings.ToLower(string(atype))
 	u := fmt.Sprintf("%s/v1/sessions/%s/scope/%s", c.base, sessionID, atypestr)
-	req, _ := http.NewRequest(http.MethodGet, u, nil)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -217,7 +218,7 @@ func (c *Client) SessionScope(token uuid.UUID, atype oam.AssetType) ([]oam.Asset
 }
 
 // Creates a new asset on the server associated with the provided token.
-func (c *Client) CreateAsset(token uuid.UUID, asset oam.Asset) (string, error) {
+func (c *Client) CreateAsset(ctx context.Context, token uuid.UUID, asset oam.Asset) (string, error) {
 	atype := strings.ToLower(string(asset.AssetType()))
 	raw, err := asset.JSON()
 	if err != nil {
@@ -226,7 +227,7 @@ func (c *Client) CreateAsset(token uuid.UUID, asset oam.Asset) (string, error) {
 
 	sessionID := token.String()
 	u := fmt.Sprintf("%s/v1/sessions/%s/assets/%s", c.base, sessionID, atype)
-	req, _ := http.NewRequest(http.MethodPost, u, bytes.NewReader(raw))
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, u, bytes.NewReader(raw))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.httpClient.Do(req)
@@ -251,7 +252,7 @@ func (c *Client) CreateAsset(token uuid.UUID, asset oam.Asset) (string, error) {
 }
 
 // Creates multiple assets in bulk on the server associated with the provided token.
-func (c *Client) CreateAssetsBulk(token uuid.UUID, atype string, assets []oam.Asset) (int, error) {
+func (c *Client) CreateAssetsBulk(ctx context.Context, token uuid.UUID, atype string, assets []oam.Asset) (int, error) {
 	atype = strings.ToLower(strings.TrimSpace(atype))
 
 	if atype == "" {
@@ -278,7 +279,7 @@ func (c *Client) CreateAssetsBulk(token uuid.UUID, atype string, assets []oam.As
 	u := fmt.Sprintf("%s/v1/sessions/%s/assets/%s:bulk", c.base, sessionID, atype)
 
 	body, _ := json.Marshal(BulkAddAssetsRequest{Items: items})
-	req, _ := http.NewRequest(http.MethodPost, u, bytes.NewReader(body))
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, u, bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := c.httpClient.Do(req)
@@ -303,7 +304,7 @@ func (c *Client) CreateAssetsBulk(token uuid.UUID, atype string, assets []oam.As
 }
 
 // Subscribe to receive a stream of log messages from the server.
-func (c *Client) Subscribe(token uuid.UUID) (<-chan string, error) {
+func (c *Client) Subscribe(ctx context.Context, token uuid.UUID) (<-chan string, error) {
 	u, err := url.Parse(c.base)
 	if err != nil {
 		return nil, err
@@ -319,7 +320,7 @@ func (c *Client) Subscribe(token uuid.UUID) (<-chan string, error) {
 	sessionID := token.String()
 	u.Path = "/v1/sessions/" + sessionID + "/ws/logs"
 
-	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	conn, _, err := websocket.DefaultDialer.DialContext(ctx, u.String(), nil)
 	if err != nil {
 		return nil, err
 	}
