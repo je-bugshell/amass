@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -16,28 +17,38 @@ import (
 	oam "github.com/owasp-amass/open-asset-model"
 )
 
+type limits struct {
+	MaxQueued    int
+	HighWater    int
+	LowWater     int
+	PerSessBurst int
+}
+
 type dynamicDispatcher struct {
 	sync.RWMutex
-	log    *slog.Logger
-	reg    et.Registry
-	mgr    et.SessionManager
-	done   chan struct{}
-	cqueue queue.Queue
-	cchan  chan *et.EventDataElement
-	pools  map[oam.AssetType]*pipelinePool
-	meta   *metaMap
+	log      *slog.Logger
+	reg      et.Registry
+	mgr      et.SessionManager
+	done     chan struct{}
+	cqueue   queue.Queue
+	cchan    chan *et.EventDataElement
+	meta     *metaMap
+	shuffler *rand.Rand
 }
 
 func NewDispatcher(l *slog.Logger, r et.Registry, mgr et.SessionManager) et.Dispatcher {
+	// Create a new random source
+	shuffler := rand.New(rand.NewSource(time.Now().UnixNano()))
+
 	d := &dynamicDispatcher{
-		log:    l,
-		reg:    r,
-		mgr:    mgr,
-		done:   make(chan struct{}),
-		cchan:  make(chan *et.EventDataElement, 1000),
-		cqueue: queue.NewQueue(),
-		pools:  make(map[oam.AssetType]*pipelinePool),
-		meta:   newMetaMap(),
+		log:      l,
+		reg:      r,
+		mgr:      mgr,
+		done:     make(chan struct{}),
+		cchan:    make(chan *et.EventDataElement, 1000),
+		cqueue:   queue.NewQueue(),
+		meta:     newMetaMap(),
+		shuffler: shuffler,
 	}
 
 	go d.runEvents()
@@ -56,9 +67,6 @@ func (d *dynamicDispatcher) Shutdown() {
 }
 
 func (d *dynamicDispatcher) runEvents() {
-	scale := time.NewTicker(5 * time.Second)
-	defer scale.Stop()
-
 	for {
 		select {
 		case <-d.done:
@@ -67,13 +75,6 @@ func (d *dynamicDispatcher) runEvents() {
 		}
 
 		select {
-		case <-scale.C:
-			for _, pool := range d.pools {
-				if stats, err := d.snapshotSessBacklogStats(pool.eventTy); err == nil {
-					_ = pool.maybeScale(stats)
-					pool.maybeAdjustFanout(stats)
-				}
-			}
 		case e := <-d.cchan:
 			d.cqueue.Append(e)
 		case <-d.cqueue.Signal():
@@ -92,8 +93,10 @@ func (d *dynamicDispatcher) completedCallback(ede *et.EventDataElement) {
 		_ = d.meta.DeleteSessionEntry(ede.Event.Session.ID().String(), ede.Event.Entity.ID)
 	}
 
-	if inst, ok := ede.Ref.(*pipelineInstance); ok {
-		inst.onDequeue()
+	if ap, ok := ede.Ref.(*et.AssetPipeline); ok {
+		if ap.Queue.Len() <= int(limitsByAssetType(ede.Event.Entity.Asset.AssetType()).LowWater) {
+			pump()
+		}
 	}
 
 	if err := ede.Error; err != nil {
@@ -158,38 +161,6 @@ func (d *dynamicDispatcher) ResubmitEvent(e *et.Event) error {
 	return pool.Dispatch(e)
 }
 
-func (d *dynamicDispatcher) getOrCreatePool(atype oam.AssetType) *pipelinePool {
-	d.RLock()
-	pool := d.pools[atype]
-	d.RUnlock()
-	if pool != nil {
-		return pool
-	}
-
-	d.Lock()
-	defer d.Unlock()
-	// check if the pool was created while waiting
-	if pool = d.pools[atype]; pool != nil {
-		return pool
-	}
-
-	min, max := assetTypeToPoolMinMax(atype)
-	pool = newPipelinePool(d, atype, min, max)
-	d.pools[atype] = pool
-	return pool
-}
-
-func assetTypeToPoolMinMax(atype oam.AssetType) (int, int) {
-	switch atype {
-	case oam.FQDN:
-		return 4, 32
-	case oam.IPAddress:
-		return 4, 32
-	default:
-		return 1, 4
-	}
-}
-
 type sessStatsMap map[string]sessBacklogStats
 
 type sessBacklogStats struct {
@@ -244,4 +215,145 @@ func (d *dynamicDispatcher) removeKilledSessions() {
 	}
 
 	d.meta.RemoveInactiveSessions(sids)
+}
+
+func limitsByAssetType(atype oam.AssetType) *limits {
+	switch atype {
+	case oam.FQDN:
+		fallthrough
+	case oam.IPAddress:
+		return &limits{
+			MaxQueued:    200,
+			HighWater:    175,
+			LowWater:     100,
+			PerSessBurst: 10,
+		}
+	case oam.Service:
+		fallthrough
+	case oam.TLSCertificate:
+		fallthrough
+	case oam.URL:
+		return &limits{
+			MaxQueued:    100,
+			HighWater:    75,
+			LowWater:     25,
+			PerSessBurst: 5,
+		}
+	}
+
+	return &limits{
+		MaxQueued:    20,
+		HighWater:    15,
+		LowWater:     5,
+		PerSessBurst: 1,
+	}
+}
+
+// Dispatch wakes up the pump for admission.
+func (p *pipelinePool) Dispatch(e *et.Event) error {
+	// decide whether to fill work queues
+	inst := p.pickInstance(p.workShardKey(e))
+	if inst != nil && inst.queueLen() <= p.limits.LowWater {
+		p.notifyCapacity()
+	}
+	return nil
+}
+
+func (p *pipelinePool) runPump() {
+	tick := time.NewTicker(time.Second)
+	defer tick.Stop()
+
+	for {
+		select {
+		case <-p.dis.done:
+			return
+		case <-p.wake:
+			p.pumpOnce()
+		case <-tick.C:
+			p.pumpOnce()
+		}
+	}
+}
+
+func (d *dynamicDispatcher) pumpOnce(atype oam.AssetType) {
+	limits := limitsByAssetType(atype)
+	if limits == nil {
+		return
+	}
+
+	stats, err := d.snapshotSessBacklogStats(atype)
+	if err != nil {
+		return
+	}
+
+	// build a list of the session IDs
+	sessions := make([]string, 0, len(stats))
+	for sid := range stats {
+		sessions = append(sessions, sid)
+	}
+
+	// shuffle the sessions for random selection
+	d.shuffler.Shuffle(len(sessions), func(i, j int) {
+		sessions[i], sessions[j] = sessions[j], sessions[i]
+	})
+
+	for _, sess := range sessions {
+		s := stats[sess]
+		if s.Queued == 0 {
+			// there are zero entities to claim from the backlog
+			continue
+		}
+
+		pipe := s.Session.Pipelines()[atype]
+		numOfClaims := int(limits.MaxQueued) - pipe.Queue.Len()
+		if numOfClaims <= 0 {
+			continue
+		}
+		numOfClaims = min(numOfClaims, limits.PerSessBurst)
+
+		entities, err := s.Session.Backlog().ClaimNext(atype, numOfClaims)
+		if err != nil {
+			continue
+		}
+
+		for _, ent := range entities {
+			a := ent.Asset
+			name := string(atype) + ": " + a.Key()
+			meta, _ := d.meta.GetEntry(sess, ent.ID)
+
+			event := &et.Event{
+				Name:       name,
+				Entity:     ent,
+				Meta:       meta,
+				Dispatcher: d,
+				Session:    s.Session,
+			}
+
+			data := et.NewEventDataElement(event)
+			data.Exit = d.cchan
+			data.Ref = pipe // keep a ref to the pipeline
+			if err := pipe.Queue.Append(data); err != nil {
+				_ = s.Session.Backlog().Release(ent, atype, false)
+			}
+		}
+	}
+}
+
+func (p *pipelinePool) hasCapacity(num int64) bool {
+	p.RLock()
+	defer p.RUnlock()
+
+	for _, inst := range p.instances {
+		if inst.queueLen()+num <= p.limits.MaxQueued {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *pipelinePool) notifyCapacity() {
+	select {
+	case p.wake <- struct{}{}:
+	default:
+	}
 }

@@ -24,6 +24,8 @@ import (
 	"github.com/yl2chen/cidranger"
 )
 
+type SessionPipelines map[oam.AssetType]*AssetPipeline
+
 type Session interface {
 	ID() uuid.UUID
 	Ctx() context.Context
@@ -34,6 +36,7 @@ type Session interface {
 	StartTime() time.Time
 	DB() repository.Repository
 	Backlog() Backlog
+	Pipelines() SessionPipelines
 	CIDRanger() cidranger.Ranger
 	TmpDir() string
 	Stats() *SessionStats

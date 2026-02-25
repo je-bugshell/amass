@@ -29,28 +29,29 @@ import (
 )
 
 type Session struct {
-	id       uuid.UUID
-	ctx      context.Context
-	cancel   context.CancelFunc
-	log      *slog.Logger
-	ps       *pubsub.Logger
-	cfg      *config.Config
-	scope    et.Scope
-	start    time.Time
-	db       repository.Repository
-	backlog  *sessionBacklog
-	dsn      string
-	dbtype   string
-	ranger   cidranger.Ranger
-	tmpdir   string
-	stats    *et.SessionStats
-	done     chan struct{}
-	finished bool
+	id        uuid.UUID
+	ctx       context.Context
+	cancel    context.CancelFunc
+	log       *slog.Logger
+	ps        *pubsub.Logger
+	cfg       *config.Config
+	scope     et.Scope
+	start     time.Time
+	db        repository.Repository
+	backlog   *sessionBacklog
+	pipelines et.SessionPipelines
+	dsn       string
+	dbtype    string
+	ranger    cidranger.Ranger
+	tmpdir    string
+	stats     *et.SessionStats
+	done      chan struct{}
+	finished  bool
 }
 
 // CreateSession initializes a new Session object based on the provided configuration.
 // The session object represents the state of an active engine enumeration.
-func CreateSession(cfg *config.Config) (et.Session, error) {
+func CreateSession(reg et.Registry, cfg *config.Config) (et.Session, error) {
 	// Use default configuration if none is provided
 	if cfg == nil {
 		cfg = config.NewConfig()
@@ -75,16 +76,24 @@ func CreateSession(cfg *config.Config) (et.Session, error) {
 
 	err := s.setupDB()
 	if err != nil {
+		s.Kill()
+		return nil, err
+	}
+
+	if err := s.createSessionPipelines(reg); err != nil {
+		s.Kill()
 		return nil, err
 	}
 
 	s.tmpdir, err = s.createTemporaryDir()
 	if err != nil {
+		s.Kill()
 		return nil, err
 	}
 
 	s.backlog, err = newSessionBacklog(s)
 	if err != nil {
+		s.Kill()
 		return nil, err
 	}
 	s.backlog.SetLeaseTTL(0)
@@ -130,6 +139,10 @@ func (s *Session) DB() repository.Repository {
 
 func (s *Session) Backlog() et.Backlog {
 	return s.backlog
+}
+
+func (s *Session) Pipelines() et.SessionPipelines {
+	return s.pipelines
 }
 
 func (s *Session) CIDRanger() cidranger.Ranger {
@@ -238,6 +251,20 @@ func (s *Session) createTemporaryDir() (string, error) {
 	}
 
 	return dir, nil
+}
+
+func (s *Session) createSessionPipelines(reg et.Registry) error {
+	s.pipelines = make(et.SessionPipelines, len(oam.AssetList))
+
+	for _, atype := range oam.AssetList {
+		p, err := reg.BuildAssetPipeline(s.Ctx(), atype)
+		if err != nil {
+			return err
+		}
+		s.pipelines[atype] = p
+	}
+
+	return nil
 }
 
 func (s *Session) updateStats() {

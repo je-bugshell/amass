@@ -27,19 +27,21 @@ import (
 type manager struct {
 	sync.RWMutex
 	logger   *slog.Logger
+	registry et.Registry
 	sessions map[uuid.UUID]et.Session
 }
 
 // NewManager: creates a new session storage.
-func NewManager(l *slog.Logger) et.SessionManager {
+func NewManager(l *slog.Logger, reg et.Registry) et.SessionManager {
 	return &manager{
 		logger:   l,
+		registry: reg,
 		sessions: make(map[uuid.UUID]et.Session),
 	}
 }
 
 func (r *manager) NewSession(cfg *config.Config) (et.Session, error) {
-	s, err := CreateSession(cfg)
+	s, err := CreateSession(r.registry, cfg)
 	if err == nil {
 		err = r.AddSession(s)
 

@@ -38,11 +38,11 @@ func NewEngine(l *slog.Logger) (*Engine, error) {
 		l = slog.New(slog.NewTextHandler(os.Stdout, nil))
 	}
 
-	mgr := sessions.NewManager(l)
+	reg := registry.NewRegistry(l)
+	mgr := sessions.NewManager(l, reg)
 	if mgr == nil {
 		return nil, errors.New("failed to create the session manager")
 	}
-	reg := registry.NewRegistry(l)
 
 	dis := dispatcher.NewDispatcher(l, reg, mgr)
 	if err := plugins.LoadAndStartPlugins(reg); err != nil {
