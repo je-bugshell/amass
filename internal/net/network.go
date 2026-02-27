@@ -11,6 +11,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // IPv4RE is a regular expression that will match an IPv4 address.
@@ -57,7 +58,11 @@ func init() {
 
 // DialContext performs the dial using global variables (e.g. LocalAddr).
 func DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
-	d := &net.Dialer{DualStack: true}
+	d := &net.Dialer{
+		DualStack: true,
+		Timeout:   10 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}
 
 	_, p, err := net.SplitHostPort(addr)
 	if err != nil {

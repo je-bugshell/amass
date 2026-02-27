@@ -12,8 +12,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/http/cookiejar"
-	"net/url"
 	"regexp"
 	"runtime"
 	"strconv"
@@ -83,20 +81,22 @@ type BasicAuth struct {
 }
 
 func init() {
-	jar, _ := cookiejar.New(nil)
 	DefaultClient = &http.Client{
 		Timeout: httpTimeout,
 		Transport: &http.Transport{
 			Proxy:                 http.ProxyFromEnvironment,
 			DialContext:           amassnet.DialContext,
-			MaxIdleConns:          200,
-			MaxConnsPerHost:       50,
+			ForceAttemptHTTP2:     false,
+			MaxIdleConns:          128,
+			MaxConnsPerHost:       8,
+			MaxIdleConnsPerHost:   1,
 			IdleConnTimeout:       10 * time.Second,
 			TLSHandshakeTimeout:   handshakeTimeout,
-			ExpectContinueTimeout: 5 * time.Second,
+			ResponseHeaderTimeout: 5 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
 			TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
 		},
-		Jar: jar,
+		Jar: nil,
 	}
 
 	switch runtime.GOOS {
@@ -168,28 +168,6 @@ func RespToAmassResponse(resp *http.Response) *Response {
 		Length:     int64(len(body)),
 		TLS:        resp.TLS,
 	}
-}
-
-// CopyCookies copies cookies from one domain to another. Some of our data
-// sources rely on shared auth tokens and this avoids sending extra requests
-// to have the site reissue cookies for the other domains.
-func CopyCookies(src string, dest string) {
-	srcURL, _ := url.Parse(src)
-	destURL, _ := url.Parse(dest)
-	DefaultClient.Jar.SetCookies(destURL, DefaultClient.Jar.Cookies(srcURL))
-}
-
-// CheckCookie checks if a cookie exists in the cookie jar for a given host
-func CheckCookie(urlString string, cookieName string) bool {
-	cookieURL, _ := url.Parse(urlString)
-	found := false
-	for _, cookie := range DefaultClient.Jar.Cookies(cookieURL) {
-		if cookie.Name == cookieName {
-			found = true
-			break
-		}
-	}
-	return found
 }
 
 // RequestWebPage returns the response headers, body, and status code for the provided URL when successful.
