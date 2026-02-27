@@ -122,45 +122,8 @@ func (hp *httpProbing) store(e *et.Event, resp *http.Response, entity *dbt.Entit
 	serv.OutputLen = int(resp.Length)
 	serv.Attributes = resp.Header
 
-	var firstAsset *dbt.Entity
-	var firstCert *x509.Certificate
-	var findings []*support.Finding
-	if count := len(resp.TLS.PeerCertificates); resp.TLS != nil && resp.TLS.HandshakeComplete && count > 0 {
-		dur := time.Duration(count*3) * time.Second
-		ctx, cancel := context.WithTimeout(e.Session.Ctx(), dur)
-		defer cancel()
-
-		var prev *dbt.Entity
-		// traverse the certificate chain
-		for _, cert := range resp.TLS.PeerCertificates {
-			c := support.X509ToOAMTLSCertificate(cert)
-			if c == nil {
-				break
-			}
-
-			a, err := e.Session.DB().CreateAsset(ctx, c)
-			if err != nil {
-				break
-			}
-
-			if prev == nil {
-				firstAsset = a
-				firstCert = cert
-			} else if tls, valid := prev.Asset.(*oamcert.TLSCertificate); valid {
-				findings = append(findings, &support.Finding{
-					From:     prev,
-					FromName: tls.SerialNumber,
-					To:       a,
-					ToName:   c.SerialNumber,
-					ToMeta:   cert,
-					Rel:      &general.SimpleRelation{Name: "issuing_certificate"},
-				})
-			}
-			prev = a
-		}
-	}
-
 	var c *oamcert.TLSCertificate
+	firstAsset, firstCert, findings := hp.createCertificates(e.Session, resp)
 	if firstAsset != nil {
 		var valid bool
 		c, valid = firstAsset.Asset.(*oamcert.TLSCertificate)
@@ -205,4 +168,54 @@ func (hp *httpProbing) store(e *et.Event, resp *http.Response, entity *dbt.Entit
 		})
 	}
 	return findings
+}
+
+func (hp *httpProbing) createCertificates(sess et.Session, resp *http.Response) (*dbt.Entity, *x509.Certificate, []*support.Finding) {
+	var findings []*support.Finding
+
+	if resp.TLS == nil || !resp.TLS.HandshakeComplete {
+		return nil, nil, findings
+	}
+
+	count := len(resp.TLS.PeerCertificates)
+	if count == 0 {
+		return nil, nil, findings
+	}
+
+	dur := time.Duration(count*3) * time.Second
+	ctx, cancel := context.WithTimeout(sess.Ctx(), dur)
+	defer cancel()
+
+	var prev *dbt.Entity
+	var firstAsset *dbt.Entity
+	var firstCert *x509.Certificate
+	// traverse the certificate chain
+	for _, cert := range resp.TLS.PeerCertificates {
+		c := support.X509ToOAMTLSCertificate(cert)
+		if c == nil {
+			break
+		}
+
+		a, err := sess.DB().CreateAsset(ctx, c)
+		if err != nil {
+			break
+		}
+
+		if prev == nil {
+			firstAsset = a
+			firstCert = cert
+		} else if tls, valid := prev.Asset.(*oamcert.TLSCertificate); valid {
+			findings = append(findings, &support.Finding{
+				From:     prev,
+				FromName: tls.SerialNumber,
+				To:       a,
+				ToName:   c.SerialNumber,
+				ToMeta:   cert,
+				Rel:      &general.SimpleRelation{Name: "issuing_certificate"},
+			})
+		}
+		prev = a
+	}
+
+	return firstAsset, firstCert, findings
 }
