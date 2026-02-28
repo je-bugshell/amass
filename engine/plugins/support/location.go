@@ -10,6 +10,7 @@ import (
 	"errors"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	biter "github.com/biter777/countries"
@@ -64,6 +65,7 @@ func StreetAddressToLocation(address string) *contact.Location {
 	if address == "" {
 		return nil
 	}
+	address = strings.TrimSpace(address)
 
 	parts, err := postalServerParseAddress(address)
 	if err != nil {
