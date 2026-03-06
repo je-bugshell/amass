@@ -93,10 +93,10 @@ func newProbeTransport(perHost int) *http.Transport {
 		DialContext:       amassnet.NewDialContext(2 * time.Second),
 		ForceAttemptHTTP2: true,
 		// keep this lower: probes spray across many hosts; idle pools become “memory”
-		MaxIdleConns:          128,
-		MaxIdleConnsPerHost:   2,
-		MaxConnsPerHost:       10,
-		IdleConnTimeout:       20 * time.Second,
+		MaxIdleConns:          32,
+		MaxIdleConnsPerHost:   1,
+		MaxConnsPerHost:       perHost,
+		IdleConnTimeout:       5 * time.Second,
 		TLSHandshakeTimeout:   3 * time.Second,
 		ExpectContinueTimeout: 0,
 		ResponseHeaderTimeout: 4 * time.Second,
@@ -106,6 +106,7 @@ func newProbeTransport(perHost int) *http.Transport {
 		TLSClientConfig: &tls.Config{
 			MinVersion: tls.VersionTLS12,
 		},
+		DisableKeepAlives:  true,
 		DisableCompression: true, // avoid spending CPU on gzip for tiny probe responses
 	}
 }
