@@ -9,7 +9,7 @@ require (
 	github.com/adrg/strutil v0.3.1
 	github.com/biter777/countries v1.7.5
 	github.com/caffix/fullname_parser v0.0.0-20260303050922-5979016ffef9
-	github.com/caffix/jarm-go v0.0.0-20240920030848-1c7ab2423494
+	github.com/caffix/jarm-go v0.0.0-20260306052330-3d837f3b03fc
 	github.com/caffix/pipeline v0.3.1-0.20260303045422-389f03cd4573
 	github.com/caffix/queue v0.4.1-0.20260303044231-38e3190f084d
 	github.com/caffix/stringset v0.2.1-0.20260303044338-0122c4694af1
@@ -24,9 +24,9 @@ require (
 	github.com/likexian/whois v1.15.7
 	github.com/likexian/whois-parser v1.24.21
 	github.com/miekg/dns v1.1.72
-	github.com/nyaruka/phonenumbers v1.6.10
+	github.com/nyaruka/phonenumbers v1.6.11
 	github.com/openrdap/rdap v0.9.1
-	github.com/owasp-amass/asset-db v0.24.0
+	github.com/owasp-amass/asset-db v0.24.1
 	github.com/owasp-amass/open-asset-model v0.15.1-0.20260306015734-5261c591eef2
 	github.com/owasp-amass/resolve v0.10.0
 	github.com/pioz/countries v0.2.2
@@ -96,7 +96,7 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/neo4j/neo4j-go-driver/v5 v5.28.4 // indirect
-	github.com/pierrec/lz4/v4 v4.1.25 // indirect
+	github.com/pierrec/lz4/v4 v4.1.26 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_golang v1.23.2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect
@@ -108,19 +108,19 @@ require (
 	github.com/temoto/robotstxt v1.1.2 // indirect
 	github.com/xhit/go-str2duration/v2 v2.1.0 // indirect
 	github.com/zeebo/xxh3 v1.1.0 // indirect
-	go.yaml.in/yaml/v2 v2.4.3 // indirect
+	go.yaml.in/yaml/v2 v2.4.4 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/crypto v0.48.0 // indirect
 	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa // indirect
 	golang.org/x/mod v0.33.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/sys v0.41.0 // indirect
-	golang.org/x/telemetry v0.0.0-20260304144227-18da59047661 // indirect
+	golang.org/x/telemetry v0.0.0-20260306145045-e526e8a188f5 // indirect
 	golang.org/x/text v0.34.0 // indirect
 	golang.org/x/tools v0.42.0 // indirect
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260226221140-a57be14db171 // indirect
-	google.golang.org/grpc v1.79.1 // indirect
+	google.golang.org/grpc v1.79.2 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	modernc.org/libc v1.69.0 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
