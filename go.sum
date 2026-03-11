@@ -1256,8 +1256,8 @@ github.com/opentracing/opentracing-go v1.2.0/go.mod h1:GxEUsuufX4nBwe+T+Wl9TAgYr
 github.com/openzipkin/zipkin-go v0.2.5/go.mod h1:KpXfKdgRDnnhsxw4pNIH9Md5lyFqKUa4YDFlwRYAMyE=
 github.com/orisano/pixelmatch v0.0.0-20220722002657-fb0b55479cde h1:x0TT0RDC7UhAVbbWWBzr41ElhJx5tXPWkIHA2HWPRuw=
 github.com/orisano/pixelmatch v0.0.0-20220722002657-fb0b55479cde/go.mod h1:nZgzbfBr3hhjoZnS66nKrHmduYNpc34ny7RK4z5/HM0=
-github.com/owasp-amass/asset-db v0.24.1 h1:PJQpxXIxtfPyEBue6QzBoTtZQSV+pkREkt8tpvcjSn0=
-github.com/owasp-amass/asset-db v0.24.1/go.mod h1:okei96ySPHJSC/OjHkIlTBmDZSLclUd7N5fvoQB94aI=
+github.com/owasp-amass/asset-db v0.24.2 h1:hfpLu9pyUULcHh7YZ0/mLzww1ncTR4TCGN3IOpe9AH4=
+github.com/owasp-amass/asset-db v0.24.2/go.mod h1:okei96ySPHJSC/OjHkIlTBmDZSLclUd7N5fvoQB94aI=
 github.com/owasp-amass/open-asset-model v0.15.1-0.20260306015734-5261c591eef2 h1:8j0HL8kF9cCyJiIti4ZpX9Avn3KVTJr6msGpTx791j4=
 github.com/owasp-amass/open-asset-model v0.15.1-0.20260306015734-5261c591eef2/go.mod h1:3BzcO7KFxlB9WMNdmn3MeLU2Hwx0GxdKnNdTAQl5vrY=
 github.com/owasp-amass/resolve v0.10.0 h1:ju0vmWNimFlEH+GpIIa/uB97c9cRWqoOmDc5tqOzbNc=
