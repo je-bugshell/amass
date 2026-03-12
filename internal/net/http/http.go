@@ -80,18 +80,17 @@ type BasicAuth struct {
 
 func init() {
 	DefaultClient = &http.Client{
-		Timeout: 20 * time.Second,
+		Timeout: 3 * time.Minute,
 		Transport: &http.Transport{
 			Proxy:                 http.ProxyFromEnvironment,
-			DialContext:           amassnet.NewDialContext(5 * time.Second),
-			ForceAttemptHTTP2:     true,
+			DialContext:           amassnet.NewDialContext(15 * time.Second),
 			MaxConnsPerHost:       100,
 			MaxIdleConns:          200,
 			MaxIdleConnsPerHost:   20,
 			IdleConnTimeout:       90 * time.Second,
-			TLSHandshakeTimeout:   5 * time.Second,
+			TLSHandshakeTimeout:   8 * time.Second,
 			ExpectContinueTimeout: 0,
-			ResponseHeaderTimeout: 8 * time.Second,
+			ResponseHeaderTimeout: 15 * time.Second,
 			TLSClientConfig:       &tls.Config{MinVersion: tls.VersionTLS12},
 			DisableCompression:    false,
 		},

@@ -43,23 +43,30 @@ func NewClients(perHost int) (*Clients, error) {
 	probTr := newProbeTransport(perHost)
 	crwlTr := newCrawlTransport()
 
-	jar, err := cookiejar.New(nil)
+	gjar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, err
+	}
+
+	cjar, err := cookiejar.New(nil)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Clients{
-		General: &http.Client{Transport: genTr, Timeout: 30 * time.Second},
+		General: &http.Client{
+			Transport: genTr,
+			Timeout:   1 * time.Minute,
+			Jar:       gjar,
+		},
 		Probe: &http.Client{
 			Transport: probTr,
-			// for probes, prefer per-request context timeouts; keep a hard cap anyway
-			Timeout: 12 * time.Second,
+			Timeout:   30 * time.Second,
 		},
 		Crawl: &http.Client{
 			Transport: crwlTr,
-			// crawls can legitimately take longer. Use request contexts to bound if needed
-			Timeout: 60 * time.Second,
-			Jar:     jar,
+			Timeout:   2 * time.Minute,
+			Jar:       cjar,
 		},
 		genTr:  genTr,
 		probTr: probTr,
