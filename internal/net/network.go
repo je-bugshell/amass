@@ -9,6 +9,7 @@ import (
 	"context"
 	"math/big"
 	"net"
+	"net/netip"
 	"strconv"
 	"strings"
 	"time"
@@ -120,6 +121,18 @@ func IsIPv4(ip net.IP) bool {
 // IsIPv6 returns true when the provided net.IP address is an IPv6 address.
 func IsIPv6(ip net.IP) bool {
 	return strings.Count(ip.String(), ":") >= 2
+}
+
+// IPToAddr converts a net.IP to netip.Addr, handling both IPv4 and IPv6.
+// Returns an error if the IP is invalid.
+func IPToAddr(ip net.IP) (netip.Addr, bool) {
+	if v4 := ip.To4(); v4 != nil {
+		return netip.AddrFromSlice(v4)
+	}
+	if v16 := ip.To16(); v16 != nil {
+		return netip.AddrFromSlice(v16)
+	}
+	return netip.Addr{}, false
 }
 
 // IsReservedAddress checks if the addr parameter is within one of the address ranges in the ReservedCIDRs slice.
