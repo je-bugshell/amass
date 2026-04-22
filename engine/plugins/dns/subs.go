@@ -184,6 +184,13 @@ func (d *dnsSubs) lookup(e *et.Event, subdomain string, since time.Time) []*relS
 			alias = append(alias, &relSubs{rtype: "dns_record", alias: fqdn, target: a})
 		}
 	}
+
+	// Mirror store(): when NS/MX records are found (fresh or cached),
+	// register this name in the apex list so dnsApex.check() can resolve
+	// the parent for subsequent FQDN events within this process.
+	if len(alias) > 0 {
+		d.plugin.addApex(n, fqdn)
+	}
 	return alias
 }
 
