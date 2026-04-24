@@ -40,7 +40,7 @@ func (b *brute) Start(r et.Registry) error {
 	if err := r.RegisterHandler(&et.Handler{
 		Plugin:       b,
 		Name:         b.name + "-Handler",
-		Position:     8,
+		Position:     13,
 		MaxInstances: support.MaxHandlerInstances,
 		Transforms:   []string{"fqdn"},
 		EventType:    oam.FQDN,
