@@ -6,10 +6,12 @@ package viz
 
 import (
 	"bytes"
+	"encoding/json"
 	"flag"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/caffix/stringset"
@@ -17,11 +19,12 @@ import (
 	"github.com/owasp-amass/amass/v5/config"
 	"github.com/owasp-amass/amass/v5/internal/afmt"
 	"github.com/owasp-amass/amass/v5/internal/tools"
+	oam "github.com/owasp-amass/open-asset-model"
 )
 
 const (
 	TimeFormat  string = "01/02 15:04:05 2006 MST"
-	UsageMsg    string = "-d3|-dot|-gexf [options] -d domain"
+	UsageMsg    string = "-d3|-dot|-gexf|-json [options] -d domain"
 	Description string = "Analyze OAM data to generate graph visualizations"
 )
 
@@ -33,6 +36,7 @@ type Args struct {
 		D3      bool
 		DOT     bool
 		GEXF    bool
+		JSON    bool
 		NoColor bool
 		Silent  bool
 	}
@@ -60,6 +64,7 @@ func NewFlagset(args *Args, errorHandling flag.ErrorHandling) *flag.FlagSet {
 	fs.BoolVar(&args.Options.D3, "d3", false, "Generate the D3 v4 force simulation HTML file")
 	fs.BoolVar(&args.Options.DOT, "dot", false, "Generate the DOT output file")
 	fs.BoolVar(&args.Options.GEXF, "gexf", false, "Generate the Gephi Graph Exchange XML Format (GEXF) file")
+	fs.BoolVar(&args.Options.JSON, "json", false, "Output nodes and edges as JSON to stdout (D3-like schema)")
 	fs.BoolVar(&args.Options.NoColor, "nocolor", false, "Disable colorized output")
 	fs.BoolVar(&args.Options.Silent, "silent", false, "Disable all output during execution")
 	return fs
@@ -120,7 +125,7 @@ func CLIWorkflow(cmdName string, clArgs []string) {
 		os.Exit(1)
 	}
 	// Make sure at least one graph file format has been identified on the command-line
-	if !args.Options.D3 && !args.Options.DOT && !args.Options.GEXF {
+	if !args.Options.D3 && !args.Options.DOT && !args.Options.GEXF && !args.Options.JSON {
 		_, _ = afmt.R.Fprintln(color.Error, "At least one file format must be selected")
 		os.Exit(1)
 	}
@@ -156,6 +161,15 @@ func CLIWorkflow(cmdName string, clArgs []string) {
 	}
 	// Obtain the visualization nodes & edges from the graph
 	nodes, edges := VizData(args.Domains.Slice(), start, db)
+
+	// JSON output goes to stdout (not a file), using a D3-like schema
+	if args.Options.JSON {
+		if jerr := writeGraphOutputJSON(os.Stdout, nodes, edges); jerr != nil {
+			_, _ = afmt.R.Fprintf(color.Error, "Failed to write JSON output: %v\n", jerr)
+			os.Exit(1)
+		}
+	}
+
 	// Get the directory to save the files into
 	dir := args.Filepaths.Directory
 	if pwd, err := os.Getwd(); err == nil {
@@ -214,5 +228,90 @@ func writeGraphOutputFile(t string, path string, nodes []Node, edges []Edge) err
 	case "gexf":
 		err = WriteGEXFData(f, nodes, edges)
 	}
+	return err
+}
+
+type jsonEdge struct {
+	Source int    `json:"source"`
+	Target int    `json:"target"`
+	Label  string `json:"label"`
+}
+
+type jsonNode struct {
+	ID    int    `json:"id"`
+	Num   int    `json:"num"`
+	Label string `json:"label"`
+	Color string `json:"color"`
+	Type  string `json:"type"`
+}
+
+type jsonGraph struct {
+	Name  string     `json:"name"`
+	Max   int        `json:"max"`
+	Nodes []jsonNode `json:"nodes"`
+	Edges []jsonEdge `json:"edges"`
+}
+
+// writeGraphOutputJSON emits a minified JSON graph (no whitespace/newlines) compatible with the D3 schema.
+func writeGraphOutputJSON(w io.Writer, nodes []Node, edges []Edge) error {
+	colors := map[string]string{
+		string(oam.Account):          "chocolate",
+		string(oam.AutnumRecord):     "yellow",
+		string(oam.AutonomousSystem): "blue",
+		string(oam.ContactRecord):    "cornsilk",
+		string(oam.DomainRecord):     "yellow",
+		string(oam.File):             "azure",
+		string(oam.FQDN):             "green",
+		string(oam.FundsTransfer):    "red",
+		string(oam.Identifier):       "chocolate",
+		string(oam.IPAddress):        "orange",
+		string(oam.IPNetRecord):      "yellow",
+		string(oam.Location):         "darkgray",
+		string(oam.Netblock):         "pink",
+		string(oam.Organization):     "aqua",
+		string(oam.Person):           "bisque",
+		string(oam.Phone):            "coral",
+		string(oam.Product):          "darkslategrey",
+		string(oam.ProductRelease):   "darkslategrey",
+		string(oam.Service):          "darkslategrey",
+		string(oam.TLSCertificate):   "deeppink",
+		string(oam.URL):              "azure",
+	}
+
+	graph := &jsonGraph{Name: "OWASP Amass - Attack Surface Mapping"}
+
+	for idx, node := range nodes {
+		// Mirror d3.go: marshal then trim quotes so we preserve JSON escaping semantics.
+		if labelBytes, err := json.Marshal(node.Title); err == nil {
+			graph.Nodes = append(graph.Nodes, jsonNode{
+				ID:    idx,
+				Label: strings.Trim(string(labelBytes), "\""),
+				Color: colors[node.Type],
+				Type:  node.Type,
+			})
+		}
+	}
+
+	for _, edge := range edges {
+		graph.Edges = append(graph.Edges, jsonEdge{
+			Source: edge.From,
+			Target: edge.To,
+			Label:  edge.Title,
+		})
+		graph.Nodes[edge.From].Num++
+		graph.Nodes[edge.To].Num++
+	}
+
+	for _, n := range graph.Nodes {
+		if n.Num > graph.Max {
+			graph.Max = n.Num
+		}
+	}
+
+	b, err := json.Marshal(graph) // minified: no whitespace/newlines
+	if err != nil {
+		return err
+	}
+	_, err = w.Write(b)
 	return err
 }
