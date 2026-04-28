@@ -21,6 +21,20 @@ import (
 	oamplat "github.com/owasp-amass/open-asset-model/platform"
 )
 
+// portScheme is the HTTP scheme this plugin probes a given port with. amass
+// fixes the scheme by port number rather than per-host configuration; both
+// `fqdnEndpoint.probeOnePort` and `ipaddrEndpoint.probeOnePort` MUST stay in
+// sync with this helper. The cert-attachment guard in `store` relies on the
+// invariant that `resp.TLS` is only meaningful when this returns "https" —
+// anything else means a TLS handshake happened on a follow-redirect target,
+// not on the probed port itself.
+func portScheme(port int) string {
+	if port == 80 || port == 8080 {
+		return "http"
+	}
+	return "https"
+}
+
 type httpProbing struct {
 	name    string
 	log     *slog.Logger
@@ -119,13 +133,23 @@ func (hp *httpProbing) store(e *et.Event, resp *amasshttp.Response, entity *dbt.
 	serv.OutputLen = int(resp.Length)
 	serv.Attributes = resp.Header
 
+	// Only attempt cert attachment when this port was probed with HTTPS. The
+	// HTTP client follows redirects across schemes, so a 301/302 from an
+	// http:// probe to https:// populates `resp.TLS` from the redirect target
+	// — that cert belongs to the HTTPS service (which gets probed independently
+	// when its port is in scope), not to the http:// service we're recording.
 	var c *oamcert.TLSCertificate
-	firstAsset, firstCert, findings := hp.createCertificates(e.Session, resp)
-	if firstAsset != nil {
-		var valid bool
-		c, valid = firstAsset.Asset.(*oamcert.TLSCertificate)
-		if !valid {
-			return findings
+	var firstAsset *dbt.Entity
+	var firstCert *x509.Certificate
+	var findings []*support.Finding
+	if portScheme(port) == "https" {
+		firstAsset, firstCert, findings = hp.createCertificates(e.Session, resp)
+		if firstAsset != nil {
+			var valid bool
+			c, valid = firstAsset.Asset.(*oamcert.TLSCertificate)
+			if !valid {
+				return findings
+			}
 		}
 	}
 
