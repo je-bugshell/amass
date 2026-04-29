@@ -41,7 +41,6 @@ var pluginNewFuncs = []func() et.Plugin{
 	aviato.NewAviato,
 	bgptools.NewBGPTools,
 	brute.NewFQDNAlterations,
-	brute.NewFQDNBruteForce,
 	dns.NewDNS,
 	dnssd.NewDNSPlugin,
 	enrich.NewBannerURLs,
