@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 )
 
 // FindingsInput is the JSON shape bs-asm writes to disk and hands us via the
@@ -26,6 +27,53 @@ type FindingsInput struct {
 	SourceTLSX    []TLSXRecord    `json:"source_tlsx,omitempty"`
 }
 
+// JSONPort = port number that tolerates JSON int, float, or string at the
+// wire boundary. naabu's own JSONL emits port as an int, but bsapp's
+// _push_findings_to_amass and tlsx_collect_data layer in port values that
+// can arrive as string ("443") or even float (80.0) from upstream JSON
+// shapes — historically a string port crashed the unmarshal and bs-asm
+// retried the permanent failure 5x. Centralising the coercion here means
+// every caller of NaabuRecord/TLSXRecord gets the same lenient parsing
+// without each one having to remember to int() its inputs.
+type JSONPort int
+
+func (p *JSONPort) UnmarshalJSON(data []byte) error {
+	// `null` would otherwise slip through json.Unmarshal-into-int as a
+	// silent zero; reject it explicitly so per-record validation can flag
+	// the missing port rather than treat it as a valid zero-port row.
+	if string(data) == "null" {
+		return fmt.Errorf("port: must be a number or numeric string, got null")
+	}
+	// Try int first — the common case for naabu's native output.
+	var n int
+	if err := json.Unmarshal(data, &n); err == nil {
+		*p = JSONPort(n)
+		return nil
+	}
+	// Float — covers JS encoders that emit 80 as 80.0. Reject fractional
+	// values rather than silently truncate.
+	var f float64
+	if err := json.Unmarshal(data, &f); err == nil {
+		if f != float64(int(f)) {
+			return fmt.Errorf("port %v: must be an integer (got fractional)", f)
+		}
+		*p = JSONPort(int(f))
+		return nil
+	}
+	// String — covers tlsx-output and any other source that hands us
+	// ports as decimal strings.
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		n, err := strconv.Atoi(s)
+		if err != nil {
+			return fmt.Errorf("port %q: not a valid integer: %w", s, err)
+		}
+		*p = JSONPort(n)
+		return nil
+	}
+	return fmt.Errorf("port: must be a number or numeric string, got %s", string(data))
+}
+
 // NaabuRecord = one open (ip, port, protocol) discovery from naabu.
 // Attributes are the optional service-banner key/value pairs from nmap
 // (which naabu calls via -nmap-cli). They feed into the OAM Service
@@ -33,7 +81,7 @@ type FindingsInput struct {
 // future enum-discovered services on the same host:port.
 type NaabuRecord struct {
 	IP         string              `json:"ip"`
-	Port       int                 `json:"port"`
+	Port       JSONPort            `json:"port"`
 	Protocol   string              `json:"protocol"`
 	Attributes map[string][]string `json:"attributes,omitempty"`
 }
@@ -53,7 +101,7 @@ type DNSXPtrRecord struct {
 // the SNI is just a hint to coax the cert out.
 type TLSXRecord struct {
 	IP   string   `json:"ip"`
-	Port int      `json:"port"`
+	Port JSONPort `json:"port"`
 	SNI  string   `json:"sni,omitempty"`
 	Cert CertJSON `json:"cert"`
 }

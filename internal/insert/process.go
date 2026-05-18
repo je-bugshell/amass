@@ -159,7 +159,7 @@ func writeNaabuRecord(ctx context.Context, db repository.Repository, rec NaabuRe
 	// the heuristic-matcher path in support.CreateServiceAsset can bridge
 	// across that mismatch via attribute comparison, but we don't invoke
 	// it here — see the dedup discussion in docs/asm_phase_2e_iter2_amass_insert.md.
-	svc := BuildService(rec.IP, rec.Protocol, rec.Port)
+	svc := BuildService(rec.IP, rec.Protocol, int(rec.Port))
 	if len(rec.Attributes) > 0 {
 		svc.Attributes = rec.Attributes
 	}
@@ -175,7 +175,7 @@ func writeNaabuRecord(ctx context.Context, db repository.Repository, rec NaabuRe
 	tagEntity(ctx, db, svcEnt, SourceNaabu, ConfidenceNaabu)
 
 	edge, err := db.CreateEdge(ctx, &dbt.Edge{
-		Relation:   &oamgen.PortRelation{Name: "port_relation", PortNumber: rec.Port, Protocol: lowerProtocol(rec.Protocol)},
+		Relation:   &oamgen.PortRelation{Name: "port_relation", PortNumber: int(rec.Port), Protocol: lowerProtocol(rec.Protocol)},
 		FromEntity: ipEnt,
 		ToEntity:   svcEnt,
 	})
@@ -203,7 +203,7 @@ func writeTLSXRecord(ctx context.Context, db repository.Repository, rec TLSXReco
 	}
 	// Re-use the same Service-ID formula naabu uses so cross-source dedup
 	// works. tlsx always probes TCP — RFC says TLS sits on TCP — so hardcode.
-	svc := BuildService(rec.IP, "tcp", rec.Port)
+	svc := BuildService(rec.IP, "tcp", int(rec.Port))
 	svc.Type = "TLS"
 	svcEnt, err := db.CreateAsset(ctx, svc)
 	if err != nil || svcEnt == nil {
@@ -215,7 +215,7 @@ func writeTLSXRecord(ctx context.Context, db repository.Repository, rec TLSXReco
 	// IP → Service edge — same shape as naabu writes. If naabu ran first
 	// this dedupes; if not, this is the first port_relation for this host.
 	portEdge, err := db.CreateEdge(ctx, &dbt.Edge{
-		Relation:   &oamgen.PortRelation{Name: "port_relation", PortNumber: rec.Port, Protocol: "tcp"},
+		Relation:   &oamgen.PortRelation{Name: "port_relation", PortNumber: int(rec.Port), Protocol: "tcp"},
 		FromEntity: ipEnt,
 		ToEntity:   svcEnt,
 	})
