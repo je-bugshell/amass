@@ -42,34 +42,38 @@ func TestWriteSummary_to_file(t *testing.T) {
 	}
 }
 
-func TestAppendInputCountsToSummary_counts_records_across_sources(t *testing.T) {
-	in := &FindingsInput{
-		SourceNaabu:   []NaabuRecord{{IP: "1.2.3.4", Port: 80, Protocol: "tcp"}, {IP: "1.2.3.5", Port: 443, Protocol: "tcp"}},
-		SourceDNSXPtr: []DNSXPtrRecord{{IP: "1.2.3.4", PtrName: "a.example.com"}},
-		SourceTLSX:    []TLSXRecord{{IP: "1.2.3.4", Port: 443, Cert: CertJSON{SerialNumberHex: "ab"}}},
+func TestSummary_bumpEntity_initializes_nil_map(t *testing.T) {
+	// Defensive: caller might pass a zero-value Summary by accident; the
+	// bumpers should self-heal rather than nil-panic.
+	s := &Summary{}
+	s.bumpEntity("fqdn", true)
+	if s.Summary == nil {
+		t.Fatal("Summary map should be initialized")
 	}
-	s := &Summary{Summary: map[string]TypeCounters{}, Edges: map[string]TypeCounters{}}
-	if err := appendInputCountsToSummary(in, s); err != nil {
-		t.Fatalf("append: %v", err)
-	}
-	got := s.Summary["input_counts"].Created
-	want := int64(2 + 1 + 1)
-	if got != want {
-		t.Errorf("input_counts = %d, want %d", got, want)
+	if s.Summary["fqdn"].Created != 1 {
+		t.Errorf("expected Created=1, got %+v", s.Summary["fqdn"])
 	}
 }
 
-func TestAppendInputCountsToSummary_initializes_nil_maps(t *testing.T) {
-	// Defensive: the scaffold pre-allocates the maps before calling this,
-	// but a future refactor could pass a zero-value Summary. Guard against
-	// nil-map panics.
-	in := &FindingsInput{SourceNaabu: []NaabuRecord{{IP: "1.2.3.4", Port: 80, Protocol: "tcp"}}}
+func TestSummary_bumpEdge_initializes_nil_map(t *testing.T) {
 	s := &Summary{}
-	if err := appendInputCountsToSummary(in, s); err != nil {
-		t.Fatalf("append: %v", err)
+	s.bumpEdge("ptr_record", false)
+	if s.Edges == nil {
+		t.Fatal("Edges map should be initialized")
 	}
-	if s.Summary == nil || s.Edges == nil {
-		t.Errorf("maps should be initialized")
+	if s.Edges["ptr_record"].Deduped != 1 {
+		t.Errorf("expected Deduped=1, got %+v", s.Edges["ptr_record"])
+	}
+}
+
+func TestSummary_addError_caps_at_max(t *testing.T) {
+	// Defensive cap so a runaway batch doesn't bloat the summary JSON.
+	s := &Summary{}
+	for i := 0; i < maxErrorsInSummary*2; i++ {
+		s.addError("oops")
+	}
+	if len(s.Errors) != maxErrorsInSummary {
+		t.Errorf("Errors len = %d, want %d", len(s.Errors), maxErrorsInSummary)
 	}
 }
 
