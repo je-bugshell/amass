@@ -36,6 +36,7 @@ import (
 	ae "github.com/owasp-amass/amass/v5/internal/amass_engine"
 	"github.com/owasp-amass/amass/v5/internal/assoc"
 	"github.com/owasp-amass/amass/v5/internal/enum"
+	"github.com/owasp-amass/amass/v5/internal/insert"
 	"github.com/owasp-amass/amass/v5/internal/subs"
 	"github.com/owasp-amass/amass/v5/internal/tools"
 	"github.com/owasp-amass/amass/v5/internal/track"
@@ -43,7 +44,7 @@ import (
 )
 
 const (
-	usageMsg string = "[assoc|engine|enum|subs|track|viz] [options]"
+	usageMsg string = "[assoc|engine|enum|insert|subs|track|viz] [options]"
 )
 
 type Args struct {
@@ -60,6 +61,7 @@ var subcommands = []subDesc{
 	{"assoc", assoc.Description},
 	{"engine", ae.Description},
 	{"enum", enum.Description},
+	{"insert", insert.Description},
 	{"subs", subs.Description},
 	{"track", track.Description},
 	{"viz", viz.Description},
@@ -157,6 +159,11 @@ func main() {
 		}
 
 		enum.CLIWorkflow(cmdName, os.Args[2:])
+	case "insert":
+		// insert is a self-contained subprocess (no engine dependency) — it
+		// opens the assetdb directly via tools.OpenGraphDatabase and writes
+		// OAM entities/edges using the same Go APIs amass's plugins use.
+		insert.CLIWorkflow(cmdName, os.Args[2:])
 	case "subs":
 		subs.CLIWorkflow(cmdName, os.Args[2:])
 	case "track":
