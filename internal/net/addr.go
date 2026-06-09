@@ -58,56 +58,78 @@ func NamesToAddrs(ctx context.Context, db repository.Repository, since time.Time
 	}
 
 	var results []*NameAddrPair
-	// get the IPs associated with SRV, NS, and MX records
-loop:
 	for _, fqdn := range fqdns {
-		if edges, err := db.OutgoingEdges(ctx, fqdn, since, "dns_record"); err == nil && len(edges) > 0 {
-			for _, edge := range edges {
-				switch v := edge.Relation.(type) {
-				case *oamdns.BasicDNSRelation:
-					if v.Header.RRType == 1 || v.Header.RRType == 28 {
-						if ip, err := getAddr(ctx, db, edge.ToEntity, since); err == nil {
-							results = append(results, &NameAddrPair{
-								FQDN: fqdn.Asset.(*oamdns.FQDN),
-								Addr: ip,
-							})
-							continue loop
-						}
-					} else if v.Header.RRType == 5 {
-						if ip, err := cnameQuery(ctx, db, edge.ToEntity, since); err == nil {
-							results = append(results, &NameAddrPair{
-								FQDN: fqdn.Asset.(*oamdns.FQDN),
-								Addr: ip,
-							})
-							continue loop
-						}
+		var direct, cname, indirect []*network.IPAddress
+
+		edges, err := db.OutgoingEdges(ctx, fqdn, since, "dns_record")
+		if err != nil || len(edges) == 0 {
+			continue
+		}
+
+		for _, edge := range edges {
+			switch v := edge.Relation.(type) {
+			case *oamdns.BasicDNSRelation:
+				if v.Header.RRType == 1 || v.Header.RRType == 28 {
+					if ip, err := getAddr(ctx, db, edge.ToEntity, since); err == nil {
+						direct = append(direct, ip)
 					}
-				case *oamdns.PrefDNSRelation:
-					if v.Header.RRType == 2 || v.Header.RRType == 15 {
-						if ip, err := oneMoreName(ctx, db, edge.ToEntity, since); err == nil {
-							results = append(results, &NameAddrPair{
-								FQDN: fqdn.Asset.(*oamdns.FQDN),
-								Addr: ip,
-							})
-							continue loop
-						}
+				} else if v.Header.RRType == 5 {
+					if ip, err := cnameQuery(ctx, db, edge.ToEntity, since); err == nil {
+						cname = append(cname, ip)
 					}
-				case *oamdns.SRVDNSRelation:
-					if v.Header.RRType == 33 {
-						if ip, err := oneMoreName(ctx, db, edge.ToEntity, since); err == nil {
-							results = append(results, &NameAddrPair{
-								FQDN: fqdn.Asset.(*oamdns.FQDN),
-								Addr: ip,
-							})
-							continue loop
-						}
+				}
+			case *oamdns.PrefDNSRelation:
+				if v.Header.RRType == 2 || v.Header.RRType == 15 {
+					if ip, err := oneMoreName(ctx, db, edge.ToEntity, since); err == nil {
+						indirect = append(indirect, ip)
+					}
+				}
+			case *oamdns.SRVDNSRelation:
+				if v.Header.RRType == 33 {
+					if ip, err := oneMoreName(ctx, db, edge.ToEntity, since); err == nil {
+						indirect = append(indirect, ip)
 					}
 				}
 			}
 		}
+
+		// Strict priority: a name's own A/AAAA wins over CNAME-derived,
+		// which wins over MX/NS/SRV-target-derived. Only the highest
+		// non-empty tier contributes — see issue #1111.
+		chosen := dedupIPs(direct)
+		if len(chosen) == 0 {
+			chosen = dedupIPs(cname)
+		}
+		if len(chosen) == 0 {
+			chosen = dedupIPs(indirect)
+		}
+
+		for _, ip := range chosen {
+			results = append(results, &NameAddrPair{
+				FQDN: fqdn.Asset.(*oamdns.FQDN),
+				Addr: ip,
+			})
+		}
 	}
 
 	return results, nil
+}
+
+func dedupIPs(ips []*network.IPAddress) []*network.IPAddress {
+	if len(ips) == 0 {
+		return nil
+	}
+	seen := make(map[string]struct{}, len(ips))
+	out := make([]*network.IPAddress, 0, len(ips))
+	for _, ip := range ips {
+		key := ip.Address.String()
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, ip)
+	}
+	return out
 }
 
 func getAddr(ctx context.Context, db repository.Repository, ip *dbt.Entity, since time.Time) (*network.IPAddress, error) {
