@@ -233,8 +233,8 @@ func X509ToOAMTLSCertificate(cert *x509.Certificate) *oamcert.TLSCertificate {
 		PublicKeyAlgorithm:    cert.PublicKeyAlgorithm.String(),
 		IsCA:                  cert.IsCA,
 		CRLDistributionPoints: cert.CRLDistributionPoints,
-		SubjectKeyID:          string(cert.SubjectKeyId),
-		AuthorityKeyID:        string(cert.AuthorityKeyId),
+		SubjectKeyID:          hex.EncodeToString(cert.SubjectKeyId),
+		AuthorityKeyID:        hex.EncodeToString(cert.AuthorityKeyId),
 	}
 
 	if cert.KeyUsage&x509.KeyUsageDigitalSignature > 0 {

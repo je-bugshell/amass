@@ -21,6 +21,12 @@ func CreateOrgNameClaim(sess et.Session, orgent *dbt.Entity, name string, src *e
 	ctx, cancel := context.WithTimeout(sess.Ctx(), 30*time.Second)
 	defer cancel()
 
+	// The org-name identifier key is case-insensitive: the entity natural_key is
+	// citext + lower(), so the same org under two casings must collapse to one
+	// identifier row. match.go already lowercases; do the same here, or the
+	// second casing trips the entity (etype_id, natural_key) unique constraint.
+	name = strings.ToLower(name)
+
 	id := &oamgen.Identifier{
 		UniqueID: fmt.Sprintf("%s:%s", oamgen.OrganizationName, name),
 		ID:       name,
@@ -51,6 +57,8 @@ func FindOrgByNameClaim(sess et.Session, name string, src *et.Source) (*dbt.Enti
 	ctx, cancel := context.WithTimeout(sess.Ctx(), 30*time.Second)
 	defer cancel()
 
+	name = strings.ToLower(name) // match CreateOrgNameClaim's case-insensitive key
+
 	ids, err := sess.DB().FindEntitiesByContent(ctx, oam.Identifier, time.Time{}, 1, dbt.ContentFilters{
 		"id":      name,
 		"id_type": oamgen.OrganizationName,
@@ -79,6 +87,8 @@ func FindOrgByNameClaim(sess et.Session, name string, src *et.Source) (*dbt.Enti
 func CreateOrgLegalNameClaim(sess et.Session, orgent *dbt.Entity, name string, src *et.Source) (*dbt.Entity, error) {
 	ctx, cancel := context.WithTimeout(sess.Ctx(), 30*time.Second)
 	defer cancel()
+
+	name = strings.ToLower(name) // case-insensitive identifier key, see CreateOrgNameClaim
 
 	id := &oamgen.Identifier{
 		UniqueID: fmt.Sprintf("%s:%s", oamgen.LegalName, name),
