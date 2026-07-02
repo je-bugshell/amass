@@ -66,42 +66,6 @@ func TestNormalizeIP_rejects_garbage(t *testing.T) {
 	}
 }
 
-// ----- NormalizeCIDR -----------------------------------------------------
-
-func TestNormalizeCIDR_v4(t *testing.T) {
-	prefix, typ, err := NormalizeCIDR("10.0.0.0/24")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if prefix.String() != "10.0.0.0/24" {
-		t.Errorf("prefix = %q, want 10.0.0.0/24", prefix.String())
-	}
-	if typ != "IPv4" {
-		t.Errorf("type = %q, want IPv4", typ)
-	}
-}
-
-func TestNormalizeCIDR_v6(t *testing.T) {
-	prefix, typ, err := NormalizeCIDR("2001:db8::/64")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if prefix.String() != "2001:db8::/64" {
-		t.Errorf("prefix = %q, want 2001:db8::/64", prefix.String())
-	}
-	if typ != "IPv6" {
-		t.Errorf("type = %q, want IPv6", typ)
-	}
-}
-
-func TestNormalizeCIDR_rejects_garbage(t *testing.T) {
-	for _, bad := range []string{"", "10.0.0.0", "not/even/cidr", "10.0.0.0/33"} {
-		if _, _, err := NormalizeCIDR(bad); err == nil {
-			t.Errorf("expected error for %q", bad)
-		}
-	}
-}
-
 // ----- NormalizeFQDN -----------------------------------------------------
 
 func TestNormalizeFQDN_lowercases(t *testing.T) {
@@ -150,10 +114,10 @@ func TestNormalizeFQDN_rejects_garbage(t *testing.T) {
 		"",
 		"  ",
 		".",
-		"singlelabel",                 // no dot
-		"has spaces .com",             // whitespace
-		"!badchar.example.com",        // punctuation
-		"slash/in.path.example.com",   // slash
+		"singlelabel",               // no dot
+		"has spaces .com",           // whitespace
+		"!badchar.example.com",      // punctuation
+		"slash/in.path.example.com", // slash
 	}
 	for _, b := range bad {
 		if _, err := NormalizeFQDN(b); err == nil {
@@ -204,8 +168,8 @@ func TestHexSerialToDecimal_rejects_garbage(t *testing.T) {
 		"",
 		"  ",
 		"not-hex",
-		"GHIJ",       // non-hex letters
-		"0x",         // prefix with no body
+		"GHIJ", // non-hex letters
+		"0x",   // prefix with no body
 	} {
 		if _, err := HexSerialToDecimal(bad); err == nil {
 			t.Errorf("expected error for %q", bad)

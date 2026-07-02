@@ -19,7 +19,6 @@ import (
 	"github.com/owasp-amass/amass/v5/config"
 	"github.com/owasp-amass/amass/v5/internal/afmt"
 	"github.com/owasp-amass/amass/v5/internal/tools"
-	oam "github.com/owasp-amass/open-asset-model"
 )
 
 const (
@@ -254,30 +253,6 @@ type jsonGraph struct {
 
 // writeGraphOutputJSON emits a minified JSON graph (no whitespace/newlines) compatible with the D3 schema.
 func writeGraphOutputJSON(w io.Writer, nodes []Node, edges []Edge) error {
-	colors := map[string]string{
-		string(oam.Account):          "chocolate",
-		string(oam.AutnumRecord):     "yellow",
-		string(oam.AutonomousSystem): "blue",
-		string(oam.ContactRecord):    "cornsilk",
-		string(oam.DomainRecord):     "yellow",
-		string(oam.File):             "azure",
-		string(oam.FQDN):             "green",
-		string(oam.FundsTransfer):    "red",
-		string(oam.Identifier):       "chocolate",
-		string(oam.IPAddress):        "orange",
-		string(oam.IPNetRecord):      "yellow",
-		string(oam.Location):         "darkgray",
-		string(oam.Netblock):         "pink",
-		string(oam.Organization):     "aqua",
-		string(oam.Person):           "bisque",
-		string(oam.Phone):            "coral",
-		string(oam.Product):          "darkslategrey",
-		string(oam.ProductRelease):   "darkslategrey",
-		string(oam.Service):          "darkslategrey",
-		string(oam.TLSCertificate):   "deeppink",
-		string(oam.URL):              "azure",
-	}
-
 	graph := &jsonGraph{Name: "OWASP Amass - Attack Surface Mapping"}
 
 	for idx, node := range nodes {
@@ -286,7 +261,7 @@ func writeGraphOutputJSON(w io.Writer, nodes []Node, edges []Edge) error {
 			graph.Nodes = append(graph.Nodes, jsonNode{
 				ID:    idx,
 				Label: strings.Trim(string(labelBytes), "\""),
-				Color: colors[node.Type],
+				Color: nodeColors[node.Type],
 				Type:  node.Type,
 			})
 		}

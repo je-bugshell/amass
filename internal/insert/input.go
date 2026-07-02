@@ -31,10 +31,9 @@ type FindingsInput struct {
 // wire boundary. naabu's own JSONL emits port as an int, but bsapp's
 // _push_findings_to_amass and tlsx_collect_data layer in port values that
 // can arrive as string ("443") or even float (80.0) from upstream JSON
-// shapes — historically a string port crashed the unmarshal and bs-asm
-// retried the permanent failure 5x. Centralising the coercion here means
-// every caller of NaabuRecord/TLSXRecord gets the same lenient parsing
-// without each one having to remember to int() its inputs.
+// shapes. Centralising the coercion here means every caller of
+// NaabuRecord/TLSXRecord gets the same lenient parsing without each one
+// having to remember to int() its inputs.
 type JSONPort int
 
 func (p *JSONPort) UnmarshalJSON(data []byte) error {
@@ -96,13 +95,9 @@ type DNSXPtrRecord struct {
 
 // TLSXRecord = a TLS handshake outcome from tlsx. The cert is the canonical
 // payload — we'll persist a TLSCertificate entity + a Service edge to it.
-// SNI (if non-empty) is the hostname tlsx sent in the ClientHello; we don't
-// currently persist it as its own entity because tlsx's bare-IP probe means
-// the SNI is just a hint to coax the cert out.
 type TLSXRecord struct {
 	IP   string   `json:"ip"`
 	Port JSONPort `json:"port"`
-	SNI  string   `json:"sni,omitempty"`
 	Cert CertJSON `json:"cert"`
 }
 
@@ -111,22 +106,13 @@ type TLSXRecord struct {
 // leading zero); we ship it as `serial_number_hex` here to make the
 // units-of-measurement explicit at the wire boundary.
 type CertJSON struct {
-	SerialNumberHex          string   `json:"serial_number_hex"`
-	IssuerCN                 string   `json:"issuer_cn"`
-	SubjectCN                string   `json:"subject_cn"`
-	NotBefore                string   `json:"not_before"`
-	NotAfter                 string   `json:"not_after"`
-	SubjectAlternativeNames  []string `json:"subject_alternative_names,omitempty"`
-	FingerprintSHA256        string   `json:"fingerprint_sha256,omitempty"`
-	Version                  string   `json:"version,omitempty"`
-	SignatureAlgorithm       string   `json:"signature_algorithm,omitempty"`
-	PublicKeyAlgorithm       string   `json:"public_key_algorithm,omitempty"`
-	KeyUsage                 []string `json:"key_usage,omitempty"`
-	ExtKeyUsage              []string `json:"ext_key_usage,omitempty"`
-	IsCA                     bool     `json:"is_ca,omitempty"`
-	CRLDistributionPoints    []string `json:"crl_distribution_points,omitempty"`
-	SubjectKeyID             string   `json:"subject_key_id,omitempty"`
-	AuthorityKeyID           string   `json:"authority_key_id,omitempty"`
+	SerialNumberHex         string   `json:"serial_number_hex"`
+	IssuerCN                string   `json:"issuer_cn"`
+	SubjectCN               string   `json:"subject_cn"`
+	NotBefore               string   `json:"not_before"`
+	NotAfter                string   `json:"not_after"`
+	SubjectAlternativeNames []string `json:"subject_alternative_names,omitempty"`
+	Version                 string   `json:"version,omitempty"`
 }
 
 // LoadInput reads the findings JSON from a path (`-` for stdin). Empty input

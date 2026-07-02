@@ -59,11 +59,10 @@ func NewFlagset(args *Args, errorHandling flag.ErrorHandling) *flag.FlagSet {
 // Summary is the per-run, per-asset-type tally written to `-output`.
 // bs-asm parses it back to surface "X new assets pushed to amass" telemetry.
 type Summary struct {
-	Summary    map[string]TypeCounters `json:"summary"`
-	Edges      map[string]TypeCounters `json:"edges,omitempty"`
-	ElapsedMS  int64                   `json:"elapsed_ms"`
-	Note       string                  `json:"note,omitempty"`
-	Skipped    string                  `json:"skipped,omitempty"`
+	Summary   map[string]TypeCounters `json:"summary"`
+	Edges     map[string]TypeCounters `json:"edges,omitempty"`
+	ElapsedMS int64                   `json:"elapsed_ms"`
+	Note      string                  `json:"note,omitempty"`
 	// Errors captures per-record write failures so operators can diagnose
 	// without grepping bs-asm logs. Capped at a small number of entries to
 	// keep the summary JSON small even when a whole batch failed.
@@ -129,10 +128,10 @@ func (s *Summary) bumpFailedEdge(kind string) {
 // CLIWorkflow is the subcommand entrypoint registered in cmd/amass/main.go.
 //
 // SLICE 2E.2 SHIPS THIS AS SCAFFOLDING ONLY:
-//   * args parsing
-//   * input file load + validation (via LoadInput)
-//   * config file load (so we surface bad config early)
-//   * a no-op summary write
+//   - args parsing
+//   - input file load + validation (via LoadInput)
+//   - config file load (so we surface bad config early)
+//   - a no-op summary write
 //
 // SLICE 2E.3 fills in the actual asset/edge writes against the assetdb.
 // Splitting the work this way means bs-asm can pin the binary in its
@@ -239,7 +238,6 @@ func CLIWorkflow(cmdName string, clArgs []string) {
 		os.Exit(3)
 	}
 }
-
 
 func writeSummary(path string, s *Summary) error {
 	buf, err := json.Marshal(s)

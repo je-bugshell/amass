@@ -13,10 +13,9 @@
 //
 //  1. Service.ID  — opaque FNV-64a hash; see [BuildServiceID].
 //  2. IPAddress.Address — netip.Addr canonical string; see [NormalizeIP].
-//  3. Netblock.CIDR — netip.Prefix canonical string; see [NormalizeCIDR].
-//  4. TLSCertificate.SerialNumber — big.Int decimal string; see [HexSerialToDecimal].
+//  3. TLSCertificate.SerialNumber — big.Int decimal string; see [HexSerialToDecimal].
 //
-// All four are independently tested in normalize_test.go.
+// All three are independently tested in normalize_test.go.
 package insert
 
 import (
@@ -50,19 +49,6 @@ func NormalizeIP(raw string) (netip.Addr, string, error) {
 		return addr, "IPv4", nil
 	}
 	return addr, "IPv6", nil
-}
-
-// NormalizeCIDR parses a CIDR string into netip.Prefix canonical form.
-// Returns the prefix and the "IPv4"|"IPv6" type tag.
-func NormalizeCIDR(raw string) (netip.Prefix, string, error) {
-	prefix, err := netip.ParsePrefix(strings.TrimSpace(raw))
-	if err != nil {
-		return netip.Prefix{}, "", fmt.Errorf("invalid CIDR %q: %w", raw, err)
-	}
-	if prefix.Addr().Is4() {
-		return prefix, "IPv4", nil
-	}
-	return prefix, "IPv6", nil
 }
 
 // NormalizeFQDN lowercases, trims, and strips a single trailing dot.

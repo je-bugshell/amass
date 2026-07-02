@@ -7,6 +7,7 @@ package insert
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/owasp-amass/asset-db/repository"
@@ -38,7 +39,6 @@ const (
 	ConfidenceTLSX    = 90
 	ConfidenceTLSXSAN = 70
 )
-
 
 // processFindings writes a FindingsInput to assetdb in the order required for
 // edge endpoints to exist before edges reference them: dnsx-ptr (FQDNs + IPs)
@@ -163,10 +163,10 @@ func writeNaabuRecord(ctx context.Context, db repository.Repository, rec NaabuRe
 	if len(rec.Attributes) > 0 {
 		svc.Attributes = rec.Attributes
 	}
-	// Service type is the protocol uppercased ("HTTPS" / "TCP") so it surfaces
+	// Service type is the protocol title-cased ("Https" / "Tcp") so it surfaces
 	// in amass UIs the same way amass plugins set it. Empty type would render
 	// blank in the graph view.
-	svc.Type = upperProtocol(rec.Protocol)
+	svc.Type = titleProtocol(rec.Protocol)
 	svcEnt, err := db.CreateAsset(ctx, svc)
 	if err != nil || svcEnt == nil {
 		return fmt.Errorf("create Service: %w", err)
@@ -241,20 +241,12 @@ func writeTLSXRecord(ctx context.Context, db repository.Repository, rec TLSXReco
 		version = "3"
 	}
 	certAsset := &oamcert.TLSCertificate{
-		SerialNumber:          decSerial,
-		SubjectCommonName:     rec.Cert.SubjectCN,
-		IssuerCommonName:      rec.Cert.IssuerCN,
-		NotBefore:             rec.Cert.NotBefore,
-		NotAfter:              rec.Cert.NotAfter,
-		Version:               version,
-		SignatureAlgorithm:    rec.Cert.SignatureAlgorithm,
-		PublicKeyAlgorithm:    rec.Cert.PublicKeyAlgorithm,
-		IsCA:                  rec.Cert.IsCA,
-		KeyUsage:              rec.Cert.KeyUsage,
-		ExtKeyUsage:           rec.Cert.ExtKeyUsage,
-		CRLDistributionPoints: rec.Cert.CRLDistributionPoints,
-		SubjectKeyID:          rec.Cert.SubjectKeyID,
-		AuthorityKeyID:        rec.Cert.AuthorityKeyID,
+		SerialNumber:      decSerial,
+		SubjectCommonName: rec.Cert.SubjectCN,
+		IssuerCommonName:  rec.Cert.IssuerCN,
+		NotBefore:         rec.Cert.NotBefore,
+		NotAfter:          rec.Cert.NotAfter,
+		Version:           version,
 	}
 	certEnt, err := db.CreateAsset(ctx, certAsset)
 	if err != nil || certEnt == nil {
@@ -363,35 +355,21 @@ func isFreshlyCreated(createdAt, runStart time.Time) bool {
 	return !createdAt.Before(runStart.Add(-100 * time.Millisecond))
 }
 
-// upperProtocol returns the OAM-conventional uppercase form used for
-// Service.Type ("HTTPS", "TCP", "SMTP"). amass's own plugins set it from
-// the application-protocol name, falling back to the transport for plain
-// scan results.
-func upperProtocol(proto string) string {
-	// Don't reach out to a map of well-known protocols here — the input is
-	// scanner-provided and we trust the caller's labeling. Capitalize for
-	// presentational consistency with amass's own writes.
-	out := []rune{}
-	for i, r := range proto {
-		if i == 0 && r >= 'a' && r <= 'z' {
-			r = r - ('a' - 'A')
-		}
-		out = append(out, r)
+// titleProtocol capitalizes the first letter of the scanner-provided
+// protocol name for Service.Type ("Tcp", "Https"), leaving the rest as-is.
+// The input is trusted caller labeling; we only touch the first character
+// for presentational consistency with amass's own writes.
+func titleProtocol(proto string) string {
+	if proto == "" {
+		return ""
 	}
-	return string(out)
+	return strings.ToUpper(proto[:1]) + proto[1:]
 }
 
 // lowerProtocol returns the OAM-conventional lowercase form used in
 // PortRelation.Protocol ("tcp" / "udp").
 func lowerProtocol(proto string) string {
-	out := []rune{}
-	for _, r := range proto {
-		if r >= 'A' && r <= 'Z' {
-			r = r + ('a' - 'A')
-		}
-		out = append(out, r)
-	}
-	return string(out)
+	return strings.ToLower(proto)
 }
 
 // _ensureOAMImports stops Go from elaborating "imported and not used" for

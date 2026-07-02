@@ -78,10 +78,10 @@ func TestLoadInput_accepts_empty_file_as_no_findings(t *testing.T) {
 
 func TestLoadInput_rejects_naabu_missing_fields(t *testing.T) {
 	cases := map[string]string{
-		"no ip":       `{"source_naabu": [{"port": 80, "protocol": "tcp"}]}`,
-		"port zero":   `{"source_naabu": [{"ip": "1.2.3.4", "port": 0, "protocol": "tcp"}]}`,
-		"no proto":    `{"source_naabu": [{"ip": "1.2.3.4", "port": 80}]}`,
-		"negative":    `{"source_naabu": [{"ip": "1.2.3.4", "port": -1, "protocol": "tcp"}]}`,
+		"no ip":     `{"source_naabu": [{"port": 80, "protocol": "tcp"}]}`,
+		"port zero": `{"source_naabu": [{"ip": "1.2.3.4", "port": 0, "protocol": "tcp"}]}`,
+		"no proto":  `{"source_naabu": [{"ip": "1.2.3.4", "port": 80}]}`,
+		"negative":  `{"source_naabu": [{"ip": "1.2.3.4", "port": -1, "protocol": "tcp"}]}`,
 	}
 	for name, body := range cases {
 		_, err := LoadInput(writeTemp(t, body))
@@ -143,9 +143,7 @@ func TestLoadInput_errors_on_unreadable_path(t *testing.T) {
 }
 
 // JSONPort accepts int, float, and string at the wire boundary. naabu's own
-// JSONL emits int but bsapp / tlsx hand us strings + the occasional 80.0 float
-// — before this change those crashed the unmarshal and bs-asm retried the
-// permanent failure 5x.
+// JSONL emits int but bsapp / tlsx hand us strings + the occasional 80.0 float.
 func TestJSONPort_unmarshal_accepts_int_float_string(t *testing.T) {
 	tests := []struct {
 		name string
@@ -175,12 +173,12 @@ func TestJSONPort_unmarshal_rejects_invalid_shapes(t *testing.T) {
 	// Fractional floats lose information when coerced — reject rather than
 	// silently truncate to int. Bools, arrays, and garbage strings also rejected.
 	tests := []string{
-		`80.5`,            // fractional
-		`true`,            // bool
-		`null`,            // null
-		`[80]`,            // array
-		`"not-a-number"`,  // string that doesn't parse
-		`""`,              // empty string
+		`80.5`,           // fractional
+		`true`,           // bool
+		`null`,           // null
+		`[80]`,           // array
+		`"not-a-number"`, // string that doesn't parse
+		`""`,             // empty string
 	}
 	for _, in := range tests {
 		t.Run(in, func(t *testing.T) {
@@ -193,10 +191,8 @@ func TestJSONPort_unmarshal_rejects_invalid_shapes(t *testing.T) {
 }
 
 func TestLoadInput_naabu_port_as_string_is_accepted(t *testing.T) {
-	// Regression: bsapp's _push_findings_to_amass and tlsx_collect_data both
-	// coerce port to int before dispatch, but the Go side used to reject
-	// `"port": "443"` outright with a json-unmarshal error and then bs-asm
-	// retried the permanent failure 5x. The lenient JSONPort fixes that.
+	// bsapp's _push_findings_to_amass and tlsx_collect_data may hand us
+	// `"port": "443"` as a string; the lenient JSONPort decodes it cleanly.
 	tmp := t.TempDir() + "/in.json"
 	body := `{"source_naabu": [{"ip": "192.0.2.1", "port": "443", "protocol": "tcp"}]}`
 	if err := os.WriteFile(tmp, []byte(body), 0o600); err != nil {
